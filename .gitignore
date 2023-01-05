@@ -1,0 +1,8 @@
+/dist/build
+/dist/download
+node_modules
+.vscode
+*-private.html
+.DS_Store
+
+/server/dist

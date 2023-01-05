@@ -1,0 +1,22 @@
+{
+    "name": "node-x",
+    "version": "0.0.1",
+    "dependencies": {},
+    "scripts": {
+        "build": "webpack --config webpack.config.js --progress --mode=production",
+        "build-dev": "webpack --config webpack.config.js --progress --mode=development"
+    },
+    "bin": {
+        "node-x": "./bin/node-x.js"
+    },
+    "devDependencies": {
+        "@babel/cli": "^7.1.0",
+        "@babel/core": "^7.1.0",
+        "@babel/preset-env": "^7.1.0",
+        "@types/node": "^18.11.18",
+        "babel-loader": "^8.1.0",
+        "file-loader": "^6.0.0",
+        "ts-loader": "^9.3.1",
+        "webpack-cli": "^4.10.0"
+    }
+}
