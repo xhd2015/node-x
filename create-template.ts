@@ -104,6 +104,10 @@ export function formatWebpackConfigJS(): string {
         extensions: [".ts", ".js"],
       },
       target: "node",
+      node:{
+        __filename:true,
+        __dirname:true,  // these two options make the __filename & __dirname correspond to original file name
+      },
       plugins: [],
       // devtool: "source-map",
     };
