@@ -64,7 +64,7 @@ export async function run() {
     }
     await Promise.all(Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])))
 
-    const redirect = debug ? "&>/dev/null" : "";
+    const redirect = debug ? "" : "&>/dev/null";
     await runCmd(`
     set -e
     (

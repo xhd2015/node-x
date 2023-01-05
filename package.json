@@ -1,13 +1,13 @@
 {
     "name": "node-ext",
-    "version": "0.0.1",
+    "version": "0.0.3",
     "dependencies": {},
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
         "build-dev": "webpack --config webpack.config.js --progress --mode=development"
     },
     "bin": {
-        "node-x": "./bin/node-x.js"
+        "node-ext": "./bin/node-ext.js"
     },
     "devDependencies": {
         "@babel/cli": "^7.1.0",
