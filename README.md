@@ -1,16 +1,16 @@
-# About `node-x`
+# About `node-ext`
 
-`node-x` is an enhanced version of `node`.
+`node-ext` is an enhanced version of `node`.
 It defaults with support of `typescript`, `ES5 Module`.
 
 # Install
 
 ```bash
 echo 'console.log("hello world")' >test.ts
-npx node-x test.ts
+npx node-ext test.ts
 
 # or npx -g if you do not want to install anything
-npx -g node-x test.test
+npx -g node-ext test.test
 ```
 
 # How it works?
