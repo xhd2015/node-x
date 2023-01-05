@@ -7,6 +7,10 @@ module.exports = {
       import: "./run.ts",
       filename: "run.js",
     },
+    cmd: {
+      import: "./cmd.ts",
+      filename: "cmd.js",
+    },
   },
   output: {
     path: path.resolve(__dirname, "bin"),
@@ -47,6 +51,10 @@ module.exports = {
     extensions: [".ts", ".js"],
   },
   target: "node",
+  node: {
+    // __filename: true,
+    // __dirname: true,
+  },
   plugins: [],
   // devtool: "source-map",
 };
