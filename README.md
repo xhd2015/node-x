@@ -6,16 +6,23 @@ It defaults with support of `typescript`, `ES5 Module`.
 # Install
 
 ```bash
-echo 'console.log("hello world")' >test.ts
-npx node-ext test.ts
-
-# or npx -g if you do not want to install anything
-npx -g node-ext test.ts
-
-# or if npx does not work, install first
+# install
 npm install -g node-ext
-npx -g node-ext test.ts
+echo "alias nx='node \"\$(npm -g root)/node-ext/bin/node-ext.js\"'" >> ~/.bash_profile
+
+source ~/.bash_profile
+
+# run
+echo 'console.log("hello world")' >test.ts
+nx test.ts
+
+# edit test.ts with vscode in a prepared directory
+nx test.ts --code
 ```
+
+# Why not using `npx`
+
+`npx` is problemtic with `npm install` in a temp directory.So we prefer to not use `npx`, rather just use `node`.
 
 # How it works?
 
