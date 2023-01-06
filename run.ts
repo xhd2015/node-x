@@ -60,7 +60,8 @@ export async function run() {
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
-    const { debug, code, force, clean, rm, root, "print-dir": printDir } = options
+    const { debug, force, clean, rm, root, "print-dir": printDir } = options
+    let code = options?.code
     const [script, ...args] = parsedArgs
 
     const tmpDir = tmpdir()
@@ -88,12 +89,17 @@ export async function run() {
     const scriptStat = await fs.stat(scriptPath).catch(e => {
         throw new Error(`not exists: ${script}`)
     })
-    if (!scriptStat.isFile()) {
+    let skipFile = false
+    if (scriptStat.isDirectory()) {
+        // open existing
+        code = true
+        skipFile = true
+    } else if (!scriptStat.isFile()) {
         throw new Error(`not a file: ${script}`)
     }
 
     // resolve abs dir
-    const scriptAbsDir = path.dirname(scriptPath)
+    const scriptAbsDir = skipFile ? scriptPath : path.dirname(scriptPath)
     if (!path.isAbsolute(scriptAbsDir)) {
         throw new Error(`failed to detect absolute dir of ${script}, the resolved dir is ${scriptAbsDir}`)
     }
@@ -102,10 +108,10 @@ export async function run() {
     }
 
     // install instructions
-    const [fileInstr, npmRoot] = await Promise.all([parseFileInstructions(scriptPath), runOutput("npm -g root")])
+    const [fileInstr, npmRoot] = await Promise.all([skipFile ? null : parseFileInstructions(scriptPath), runOutput("npm -g root")])
 
     const importMap: ImportMap = {
-        ...normalizeImportDir(fileInstr.importMap, npmRoot),
+        ...normalizeImportDir(fileInstr?.importMap, npmRoot),
         "@": "./",
         "@node-ext": path.resolve(npmRoot, "node-ext/lib"),
     }
@@ -137,12 +143,14 @@ export async function run() {
     const packageJSONSum = createHash("md5").update(packageJSON).digest("hex")
 
     const files = {
-        // it must be a run.ts, not run.js to work out the missing tsconfig.json
-        "run.ts": `import "${scriptPath}"`,
         "package.json": packageJSON,
         [checksumFile]: packageJSONSum,
         "tsconfig.json": tsConfigJSON,
         "webpack.config.js": webpackConfigJS,
+    }
+    if (!skipFile) {
+        // it must be a run.ts, not run.js to work out the missing tsconfig.json
+        files["run.ts"] = `import "${scriptPath}"`
     }
     await Promise.all([
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
@@ -158,7 +166,8 @@ export async function run() {
         return
     }
     if (code) {
-        await runCmd(`code --goto "${targetDir}/src/${path.basename(scriptPath)}" "${targetDir}"`, { debug })
+        const gotoOption = skipFile ? "" : `--goto "${targetDir}/src/${path.basename(scriptPath)}"`
+        await runCmd(`code ${gotoOption} "${targetDir}"`, { debug })
         return
     }
     let needInstall = force || prevChecksum !== packageJSONSum;
