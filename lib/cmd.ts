@@ -18,7 +18,7 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
     })
     ps.stderr.on('data', e => process.stderr.write(e))
     let stdout = ''
-    if (opts.needStdout) {
+    if (opts?.needStdout) {
         ps.stdout.on('data', e => stdout += e)
     } else {
         ps.stdout.on('data', e => process.stdout.write(e))
