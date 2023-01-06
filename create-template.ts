@@ -22,6 +22,7 @@ export function formatPackageJSON(name: string): string {
     }
     `
 }
+// the @node-ext/ and @/ alias for tsconfig.json makes it simple to import builtin-libs
 export function formatTsConfigJSON(): string {
   return `{
         // Change this to match your project
@@ -49,12 +50,15 @@ export function formatTsConfigJSON(): string {
             // "module": "ES2015",
             // "outDir": "src/debug",
             "moduleResolution": "node",
-            "rootDirs": ["./"]
+            "rootDirs": ["./"],
+            "paths": {
+              "@/*":["./*"],
+              "@node-ext/*": ["./*"]
+            }
         },
         "exclude": []
     }`
 }
-
 
 export function formatWebpackConfigJS(): string {
   return `const path = require("path");
@@ -101,6 +105,7 @@ export function formatWebpackConfigJS(): string {
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "./"),
+          "@node-ext": path.resolve(__dirname, "./")
         },
         extensions: [".ts", ".js"],
       },

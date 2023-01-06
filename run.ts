@@ -148,7 +148,7 @@ and with \`--code\` option we can edit ts files with vscode super easily.
 
     // the __dirname is bin
     // console.log("__dirname:", __dirname)
-    const cmdJs = await fs.readFile(path.join(__dirname, "cmd.js"))
+    const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
 
     const checksumFile = "package.json.checksum"
     const prevChecksum = force ? "" : await fs.readFile(path.join(targetDir, checksumFile), { encoding: "utf-8" }).catch(e => { })
@@ -156,18 +156,13 @@ and with \`--code\` option we can edit ts files with vscode super easily.
 
     const files = {
         // it must be a run.ts, not run.js to work out the missing tsconfig.json
-        "run.ts": `
-// some globals
-import * as cmd from "./cmd.js"
-globalThis.node_ext = { cmd }
-
-import "${scriptPath}";
-`,
+        "run.ts": `import "${scriptPath}"`,
         "package.json": packageJSON,
         [checksumFile]: packageJSONSum,
         "tsconfig.json": tsConfigJSON,
         "webpack.config.js": webpackConfigJS,
-        "cmd.js": cmdJs,
+        // custom libs
+        "cmd.ts": cmdTS,
     }
     await Promise.all([
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),

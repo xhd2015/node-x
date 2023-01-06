@@ -7,10 +7,10 @@ module.exports = {
       import: "./run.ts",
       filename: "run.js",
     },
-    cmd: {
-      import: "./cmd.ts",
-      filename: "cmd.js",
-    },
+    // cmd: {
+    //   import: "./cmd.ts",
+    //   filename: "cmd.js",
+    // },
   },
   output: {
     path: path.resolve(__dirname, "bin"),
