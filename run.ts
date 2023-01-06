@@ -4,7 +4,7 @@ import { tmpdir } from "os"
 import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS } from "./create-template"
 import { run as runCmd } from "./cmd"
 import { createHash } from 'crypto'
-import {spawn} from "child_process"
+import { spawn } from "child_process"
 
 export interface Options {
     script: string
@@ -82,7 +82,7 @@ Example:
         throw new Error("requires script to run")
     }
     if (script === 'update') {
-        await runCmd("npm remove -g node-ext; npm install -g node-ext",{debug})
+        await runCmd("npm remove -g node-ext; npm install -g node-ext", { debug })
         return
     }
 
@@ -151,46 +151,50 @@ import "${scriptPath}";
         "webpack.config.js": webpackConfigJS,
         "cmd.js": cmdJs,
     }
-    await Promise.all(Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])))
+    await Promise.all([
+        ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
+        // create link
+        runCmd(`rm -f "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug })
+    ])
 
     if (printDir) {
         console.log(targetDir)
         return
     }
     if (code) {
-        await runCmd(`code --goto ${scriptPath} ${targetDir}`,{debug})
+        await runCmd(`code --goto "${targetDir}/src/${path.basename(scriptPath)}" "${targetDir}"`, { debug })
         return
     }
-    let needInstall=force ||  prevChecksum !== packageJSONSum;
-    if(!needInstall){
-       // check node_modules
-       let dirExists=false
-       await fs.stat(path.join(targetDir, "node_modules")).then(e=>dirExists=e.isDirectory()).catch(e=>{})
-       needInstall=!dirExists
+    let needInstall = force || prevChecksum !== packageJSONSum;
+    if (!needInstall) {
+        // check node_modules
+        let dirExists = false
+        await fs.stat(path.join(targetDir, "node_modules")).then(e => dirExists = e.isDirectory()).catch(e => { })
+        needInstall = !dirExists
     }
 
     const redirect = debug ? "" : "&>/dev/null";
     // node -e 'const {spawn}=require("child_process");const ps=spawn("bash",["-c","cd node-ext;npm install"]);ps.stdout.on("data", e => process.stdout.write(e));ps.stderr.on("data", e => process.stderr.write(e))'
     // NOTE: the following workaround won't work as long as we are invoking from npx.
-    if(false && needInstall){
-	    // const ps = spawn("npm", ["install","--no-audit","--no-fund"],{cwd: targetDir})
-	    const ps = spawn("bash", [`-e${debug?"x":""}c`,"pwd;npm install --no-audit --no-fund;sleep 5;npm install;sleep 5; npm install"],{cwd: targetDir})
-            if(debug){
-                ps.stdout.on("data", e => process.stdout.write(e));
-                ps.stderr.on("data", e => process.stderr.write(e)) ;
-            }
-		await new Promise((resolve, reject) => {
-			ps.on('error', function (e) {
-			    reject(e)
-			})
-			ps.on('close', function (code) {
-			    if (code !== 0) {
-				reject(new Error(`exit code: ${code}`))
-			    } else {
-				resolve(code)
-			    }
-			})
-		    });
+    if (false && needInstall) {
+        // const ps = spawn("npm", ["install","--no-audit","--no-fund"],{cwd: targetDir})
+        const ps = spawn("bash", [`-e${debug ? "x" : ""}c`, "pwd;npm install --no-audit --no-fund;sleep 5;npm install;sleep 5; npm install"], { cwd: targetDir })
+        if (debug) {
+            ps.stdout.on("data", e => process.stdout.write(e));
+            ps.stderr.on("data", e => process.stderr.write(e));
+        }
+        await new Promise((resolve, reject) => {
+            ps.on('error', function (e) {
+                reject(e)
+            })
+            ps.on('close', function (code) {
+                if (code !== 0) {
+                    reject(new Error(`exit code: ${code}`))
+                } else {
+                    resolve(code)
+                }
+            })
+        });
     }
     await runCmd(`
     set -e
