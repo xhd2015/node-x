@@ -7,10 +7,8 @@ It defaults with support of `typescript`, `ES5 Module`.
 
 ```bash
 # install
-npm install -g node-ext
-echo "alias nx='node \"\$(npm -g root)/node-ext/bin/node-ext.js\"'" >> ~/.bash_profile
-
-source ~/.bash_profile
+npm install -g node-ext # this will link /usr/local/bin/nx to node-ext/bin/nx, if not linked previous.
+nx --help
 
 # run
 echo 'console.log("hello world")' >test.ts

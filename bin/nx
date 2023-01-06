@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+node "$(npm -g root)/node-ext/bin/node-ext.js" "$@"
