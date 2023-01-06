@@ -25,10 +25,11 @@ Setup:
   $ echo "alias nx='node \\"\\$(npm -g root)/node-ext/bin/node-ext.js\\"'" >> ~/.bash_profile
 
 Example:
-  $ nx --help       # show help
-  $ nx test.ts      # run test.ts
-  $ nx -c test.ts   # open the directory
-  $ nx update       # update node-ext version
+  $ nx --help           # show help
+  $ nx test.ts          # run test.ts
+  $ nx -x test.ts       # run test.ts, with debug info
+  $ nx --code test.ts   # open the directory
+  $ nx update           # update node-ext version
 
 Compare with \`ts-node\`: you can also use \`ts-node\` to run typescript, e.g. \`npx -g ts-node --transpile-only test.ts\`.
 The advantage that \`nx\` provides is it can provide default \`webpack.config.js\` and \`tsconfg.json\`,
@@ -137,8 +138,8 @@ export async function run() {
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
         // create link
         runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
-        // copy libs
-        runCmd(`cp -R "${libDir}" "${targetDir}/lib"`, { debug }),
+        // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
+        runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
     ])
 
     if (printDir) {

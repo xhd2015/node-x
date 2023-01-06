@@ -1,6 +1,6 @@
 {
     "name": "node-ext",
-    "version": "0.0.31",
+    "version": "0.0.34",
     "dependencies": {},
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
