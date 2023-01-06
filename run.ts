@@ -4,6 +4,7 @@ import { tmpdir } from "os"
 import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS } from "./create-template"
 import { run as runCmd } from "./cmd"
 import { createHash } from 'crypto'
+import {spawn} from "child_process"
 
 export interface Options {
     script: string
@@ -63,16 +64,17 @@ Options:
   -f, --force       force install modules
       --clean       clean the target dir before writing files
 
-You can set \`nx\` as an alias to \`npx -g node-ext\` to simplify the usage.
+You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
+NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
 Setup:
   $ npm install -g node-ext # install or upgrade to newest version
-  $ echo "alias nx='npx -g node-ext'" >> ~/.bash_profile
+  $ echo "alias nx='node \\"\\$(npm -g root)/node-ext/bin/node-ext.js\\"'" >> ~/.bash_profile
 
 Example:
   $ nx --help       # show help
   $ nx test.ts      # run test.ts
   $ nx -c test.ts   # open the directory
-  $ nx update       # update node-ext version
+  $ nx update       # update node-ext version 
 `)
         return
     }
@@ -80,7 +82,7 @@ Example:
         throw new Error("requires script to run")
     }
     if (script === 'update') {
-        await runCmd("npm install -g node-ext")
+        await runCmd("npm remove -g node-ext; npm install -g node-ext",{debug})
         return
     }
 
@@ -156,16 +158,45 @@ import "${scriptPath}";
         return
     }
     if (code) {
-        await runCmd(`code --goto ${scriptPath}:1 ${targetDir}`)
+        await runCmd(`code --goto ${scriptPath} ${targetDir}`,{debug})
         return
+    }
+    let needInstall=force ||  prevChecksum !== packageJSONSum;
+    if(!needInstall){
+       // check node_modules
+       let dirExists=false
+       await fs.stat(path.join(targetDir, "node_modules")).then(e=>dirExists=e.isDirectory()).catch(e=>{})
+       needInstall=!dirExists
     }
 
     const redirect = debug ? "" : "&>/dev/null";
+    // node -e 'const {spawn}=require("child_process");const ps=spawn("bash",["-c","cd node-ext;npm install"]);ps.stdout.on("data", e => process.stdout.write(e));ps.stderr.on("data", e => process.stderr.write(e))'
+    // NOTE: the following workaround won't work as long as we are invoking from npx.
+    if(false && needInstall){
+	    // const ps = spawn("npm", ["install","--no-audit","--no-fund"],{cwd: targetDir})
+	    const ps = spawn("bash", [`-e${debug?"x":""}c`,"pwd;npm install --no-audit --no-fund;sleep 5;npm install;sleep 5; npm install"],{cwd: targetDir})
+            if(debug){
+                ps.stdout.on("data", e => process.stdout.write(e));
+                ps.stderr.on("data", e => process.stderr.write(e)) ;
+            }
+		await new Promise((resolve, reject) => {
+			ps.on('error', function (e) {
+			    reject(e)
+			})
+			ps.on('close', function (code) {
+			    if (code !== 0) {
+				reject(new Error(`exit code: ${code}`))
+			    } else {
+				resolve(code)
+			    }
+			})
+		    });
+    }
     await runCmd(`
     set -e
     (
         cd "$TARGET_DIR"
-        if [[ ! -d node_modules || $NEED_INSTALL == true ]];then npm install ${redirect} ; fi ;# slow
+        ${needInstall ? "npm install --no-audit --no-fund " + redirect : ""}  # npm install is slow so we need a checksum to avoid repeat
         npm run build-dev ${redirect} ; # dev mode webpack can use build cache
     )
     node "$TARGET_DIR/bin/run.js" "$@"
@@ -174,7 +205,6 @@ import "${scriptPath}";
         args: args,
         env: {
             "TARGET_DIR": targetDir,
-            "NEED_INSTALL": String(force || prevChecksum !== packageJSONSum),
         }
     })
 }
