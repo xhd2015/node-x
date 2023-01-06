@@ -7,6 +7,13 @@ import { createHash } from 'crypto'
 import { spawn } from "child_process"
 import { iterLines, trimPrefix } from "./lib/str"
 
+
+// You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
+// NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
+// Setup:
+//   $ npm install -g node-ext # install or upgrade to newest version
+//   $ echo "alias nx='node \\"\\$(npm -g root)/node-ext/bin/node-ext.js\\"'" >> ~/.bash_profile
+
 const help = `Usage: nx [OPTIONS] <script> [--] [script-args...]
 
 Options:
@@ -19,11 +26,7 @@ Options:
       --clean       clean the target dir before writing files
       --rm          remove the target dir, and do nothing
 
-You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
-NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
-Setup:
-  $ npm install -g node-ext # install or upgrade to newest version
-  $ echo "alias nx='node \\"\\$(npm -g root)/node-ext/bin/node-ext.js\\"'" >> ~/.bash_profile
+Once installed with \`npm install -g node-ext\`, \`nx\` will be automatically linked to /usr/local/bin so you can just use \`nx\` to run scripts
 
 Example:
   $ nx --help           # show help
