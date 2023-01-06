@@ -2,65 +2,11 @@ import * as path from "path"
 import * as fs from "fs/promises"
 import { tmpdir } from "os"
 import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS } from "./create-template"
-import { run as runCmd } from "./cmd"
+import { parseOptions, run as runCmd } from "./lib/cmd"
 import { createHash } from 'crypto'
 import { spawn } from "child_process"
 
-export interface Options {
-    script: string
-    args: string[]
-    debug?: boolean
-    code?: boolean // --code
-
-    clean?: boolean
-
-    force?: boolean
-    printDir?: boolean
-    help?: boolean
-    rm?: boolean
-    root?: boolean // print the root directory
-}
-
-function parseArgs(args: string[]): Options {
-    const opts = { args: [] } as Options
-    const n = args.length
-    for (let i = 0; i < n; i++) {
-        const arg = args[i]
-        if (arg === '--') {
-            opts.args.push(...args.slice(i + 1))
-            break
-        }
-        if (arg === '-h' || arg === '--help') {
-            opts.help = true
-        } else if (arg === '-x' || arg === '--debug') {
-            opts.debug = true
-        } else if (arg === '-c' || arg === '--code') {
-            opts.code = true
-        } else if (arg === '-p' || arg === '--print-dir') {
-            opts.printDir = true
-        } else if (arg === '-f' || arg === '--force') {
-            opts.force = true
-        } else if (arg === '--clean') {
-            opts.clean = true
-        } else if (arg === '--rm') {
-            opts.rm = true
-        } else if (arg === '--root') {
-            opts.root = true
-        } else if (arg.startsWith("-")) {
-            throw new Error(`unrecognized option: ${arg}`)
-        } else {
-            opts.args.push(arg)
-        }
-    }
-    [opts.script, ...opts.args] = opts.args
-    return opts
-}
-// const debug = false
-export async function run() {
-    // argv: [node, run.js, ...]
-    const { script, args, debug, code, help, printDir, force, clean, rm, root } = parseArgs(process.argv.slice(2))
-    if (help) {
-        console.log(`Usage: nx [OPTIONS] <script> [--] [script-args...]
+const help = `Usage: nx [OPTIONS] <script> [--] [script-args...]
 
 Options:
   -h, --help        show help message
@@ -87,9 +33,31 @@ Example:
 Compare with \`ts-node\`: you can also use \`ts-node\` to run typescript, e.g. \`npx -g ts-node --transpile-only test.ts\`.
 The advantage that \`nx\` provides is it can provide default \`webpack.config.js\` and \`tsconfg.json\`,
 and with \`--code\` option we can edit ts files with vscode super easily.
-`)
-        return
-    }
+
+`
+
+export interface Options {
+    debug?: boolean
+    code?: boolean // --code
+
+    clean?: boolean
+
+    force?: boolean
+    "print-dir"?: boolean
+    help?: boolean
+    rm?: boolean
+    root?: boolean // print the root directory
+}
+
+// const debug = false
+export async function run() {
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm")
+    // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
+
+    // console.log("options:", options)
+    const { debug, code, force, clean, rm, root, "print-dir": printDir } = options
+    const [script, ...args] = parsedArgs
+
     const tmpDir = tmpdir()
     const syncDir = path.join(tmpDir, "nx-sync")
     if (root) {
@@ -148,7 +116,8 @@ and with \`--code\` option we can edit ts files with vscode super easily.
 
     // the __dirname is bin
     // console.log("__dirname:", __dirname)
-    const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
+    const libDir = path.resolve(__dirname, "../lib")
+    // const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
 
     const checksumFile = "package.json.checksum"
     const prevChecksum = force ? "" : await fs.readFile(path.join(targetDir, checksumFile), { encoding: "utf-8" }).catch(e => { })
@@ -162,12 +131,14 @@ and with \`--code\` option we can edit ts files with vscode super easily.
         "tsconfig.json": tsConfigJSON,
         "webpack.config.js": webpackConfigJS,
         // custom libs
-        "cmd.ts": cmdTS,
+        // "cmd.ts": cmdTS,
     }
     await Promise.all([
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
         // create link
-        runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug })
+        runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
+        // copy libs
+        runCmd(`cp -R "${libDir}" "${targetDir}/lib"`, { debug }),
     ])
 
     if (printDir) {
@@ -227,6 +198,7 @@ and with \`--code\` option we can edit ts files with vscode super easily.
 }
 
 run().catch(e => {
+    // console.error(e) // with trace
     console.error(e.message)
     process.exit(1)
 }).finally(() => {

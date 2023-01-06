@@ -1,5 +1,6 @@
 
 import * as child_process from "child_process"
+import { parse as parseOptions } from "./options"
 
 export interface RunOptions {
     cwd?: string
@@ -29,4 +30,8 @@ export async function run(cmd: string, opts?: RunOptions): Promise<number> {
             }
         })
     })
+}
+
+export {
+    parseOptions
 }

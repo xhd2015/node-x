@@ -53,7 +53,7 @@ export function formatTsConfigJSON(): string {
             "rootDirs": ["./"],
             "paths": {
               "@/*":["./*"],
-              "@node-ext/*": ["./*"]
+              "@node-ext/*": ["./lib/*"]
             }
         },
         "exclude": []
@@ -105,7 +105,7 @@ export function formatWebpackConfigJS(): string {
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "./"),
-          "@node-ext": path.resolve(__dirname, "./")
+          "@node-ext": path.resolve(__dirname, "./lib")
         },
         extensions: [".ts", ".js"],
       },
