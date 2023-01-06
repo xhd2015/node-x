@@ -1,11 +1,11 @@
 {
     "name": "node-ext",
-    "version": "0.0.27",
+    "version": "0.0.28",
     "dependencies": {},
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
         "build-dev": "webpack --config webpack.config.js --progress --mode=development",
-        "update-local": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\""
+        "install-local": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\""
     },
     "bin": {
         "node-ext": "./bin/node-ext.js"

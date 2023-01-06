@@ -17,6 +17,8 @@ export interface Options {
     force?: boolean
     printDir?: boolean
     help?: boolean
+    rm?: boolean
+    root?: boolean // print the root directory
 }
 
 function parseArgs(args: string[]): Options {
@@ -40,6 +42,10 @@ function parseArgs(args: string[]): Options {
             opts.force = true
         } else if (arg === '--clean') {
             opts.clean = true
+        } else if (arg === '--rm') {
+            opts.rm = true
+        } else if (arg === '--root') {
+            opts.root = true
         } else if (arg.startsWith("-")) {
             throw new Error(`unrecognized option: ${arg}`)
         } else {
@@ -52,17 +58,19 @@ function parseArgs(args: string[]): Options {
 // const debug = false
 export async function run() {
     // argv: [node, run.js, ...]
-    const { script, args, debug, code, help, printDir, force, clean } = parseArgs(process.argv.slice(2))
+    const { script, args, debug, code, help, printDir, force, clean, rm, root } = parseArgs(process.argv.slice(2))
     if (help) {
         console.log(`Usage: nx [OPTIONS] <script> [--] [script-args...]
 
 Options:
   -h, --help        show help message
   -p, --print-dir   print the generated directory
+      --root        print root directory and exit
   -x, --debug       log debug info
   -c, --code        open the directory with vscode
   -f, --force       force install modules
       --clean       clean the target dir before writing files
+      --rm          remove the target dir, and do nothing
 
 You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
 NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
@@ -76,6 +84,12 @@ Example:
   $ nx -c test.ts   # open the directory
   $ nx update       # update node-ext version 
 `)
+        return
+    }
+    const tmpDir = tmpdir()
+    const syncDir = path.join(tmpDir, "nx-sync")
+    if (root) {
+        console.log(syncDir)
         return
     }
     if (!script) {
@@ -101,9 +115,6 @@ Example:
         throw new Error(`not a file: ${script}`)
     }
 
-    const tmpDir = tmpdir()
-    const syncDir = path.join(tmpDir, "nx-sync")
-
     // resolve abs dir
     const scriptAbsDir = path.dirname(scriptPath)
     if (!path.isAbsolute(scriptAbsDir)) {
@@ -117,8 +128,11 @@ Example:
     if (debug) {
         console.error("target dir:", targetDir)
     }
-    if (clean) {
+    if (clean || rm) {
         await fs.rm(targetDir, { recursive: true })
+        if (rm) {
+            return
+        }
     }
     await fs.mkdir(targetDir, { recursive: true })
 
@@ -154,7 +168,7 @@ import "${scriptPath}";
     await Promise.all([
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
         // create link
-        runCmd(`rm -f "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug })
+        runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug })
     ])
 
     if (printDir) {
