@@ -25,6 +25,13 @@ export function trimPrefix(s: string, prefix: string): [s: string, ok: boolean] 
     }
     return [s, false]
 }
+
+export function addSuffix(s: string, suffix: string): string {
+    if (s.endsWith(suffix)) {
+        return s
+    }
+    return s + suffix
+}
 // function testIterLines() {
 //     const s = "abcd\n\nee\nxxx\nee"
 //     iterLines(s, (start, end) => {

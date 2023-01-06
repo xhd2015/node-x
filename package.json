@@ -1,13 +1,13 @@
 {
     "name": "node-ext",
-    "version": "0.0.41",
+    "version": "0.0.45",
     "dependencies": {},
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
         "build-dev": "webpack --config webpack.config.js --progress --mode=development",
         "install-local": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\"",
         "prepack": "npm run build",
-        "postinstall": "if [[ -d /usr/local/bin && ! -e /usr/local/bin/nx ]];then ln -sf \"$(npm -g root)/node-ext/bin/nx\" /usr/local/bin/nx;fi"
+        "postinstall": "node bin/install.js"
     },
     "bin": {
         "node-ext": "./bin/node-ext.js"

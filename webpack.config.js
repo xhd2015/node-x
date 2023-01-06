@@ -7,6 +7,10 @@ module.exports = {
       import: "./run.ts",
       filename: "run.js",
     },
+    install: {
+      import: "./install.ts",
+      filename: "install.js"
+    }
     // cmd: {
     //   import: "./cmd.ts",
     //   filename: "cmd.js",

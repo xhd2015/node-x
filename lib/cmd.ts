@@ -27,6 +27,7 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
 
     return new Promise((resolve, reject) => {
         ps.on('error', function (e) {
+            // console.log("on error:", e)
             reject(e)
         })
         ps.on('close', function (code) {
@@ -36,6 +37,13 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
                 resolve({ exitCode: code, stdout })
             }
         })
+    })
+}
+
+export async function catchedRun(fn: () => Promise<void>) {
+    fn().catch(e => {
+        console.error(e?.message || e)
+        process.exit(1)
     })
 }
 
@@ -49,5 +57,6 @@ export async function runOutput(cmd: string, opts?: RunOptions): Promise<string>
 }
 
 export {
-    parseOptions
+    parseOptions,
+    run as runCmd,
 }
