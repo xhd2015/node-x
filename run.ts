@@ -1,10 +1,11 @@
 import * as path from "path"
 import * as fs from "fs/promises"
 import { tmpdir } from "os"
-import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS } from "./create-template"
-import { parseOptions, run as runCmd } from "./lib/cmd"
+import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS, ImportMap, InstallMap } from "./create-template"
+import { parseOptions, run as runCmd, runOutput } from "./lib/cmd"
 import { createHash } from 'crypto'
 import { spawn } from "child_process"
+import { iterLines, trimPrefix } from "./lib/str"
 
 const help = `Usage: nx [OPTIONS] <script> [--] [script-args...]
 
@@ -97,6 +98,15 @@ export async function run() {
         throw new Error(`${script} resides in nx-sync dir: ${syncDir}, try another location`)
     }
 
+    // install instructions
+    const [fileInstr, npmRoot] = await Promise.all([parseFileInstructions(scriptPath), runOutput("npm -g root")])
+
+    const importMap: ImportMap = {
+        ...normalizeImportDir(fileInstr.importMap, npmRoot),
+        "@": "./",
+        "@node-ext": path.resolve(npmRoot, "node-ext/lib"),
+    }
+
     const targetDir = path.join(syncDir, scriptAbsDir)
     if (debug) {
         console.error("target dir:", targetDir)
@@ -109,15 +119,14 @@ export async function run() {
     }
     await fs.mkdir(targetDir, { recursive: true })
 
-
     // create the templates
-    const packageJSON = formatPackageJSON("tmp")
-    const tsConfigJSON = formatTsConfigJSON()
-    const webpackConfigJS = formatWebpackConfigJS()
+    const packageJSON = formatPackageJSON({ name: "tmp", installMap: fileInstr?.installMap })
+    const tsConfigJSON = formatTsConfigJSON({ importMap })
+    const webpackConfigJS = formatWebpackConfigJS({ importMap })
 
     // the __dirname is bin
     // console.log("__dirname:", __dirname)
-    const libDir = path.resolve(__dirname, "../lib")
+    // const libDir = path.resolve(__dirname, "../lib")
     // const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
 
     const checksumFile = "package.json.checksum"
@@ -131,15 +140,14 @@ export async function run() {
         [checksumFile]: packageJSONSum,
         "tsconfig.json": tsConfigJSON,
         "webpack.config.js": webpackConfigJS,
-        // custom libs
-        // "cmd.ts": cmdTS,
     }
     await Promise.all([
         ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
         // create link
         runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
+        // NOTE: no need to copy libs, we use import map to point that lib
         // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
-        runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
+        // runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
     ])
 
     if (printDir) {
@@ -196,6 +204,69 @@ export async function run() {
             "TARGET_DIR": targetDir,
         }
     })
+}
+
+interface FileInstructions {
+    importMap: ImportMap
+    installMap: InstallMap
+}
+async function parseFileInstructions(file: string): Promise<FileInstructions> {
+    const s = await fs.readFile(file, { 'encoding': 'utf-8' })
+    const instrs = parseInstructions(s)
+    const importMap: ImportMap = {}
+    const installMap: InstallMap = {}
+    instrs?.forEach?.(inst => {
+        if (inst.startsWith("#")) {
+            return
+        }
+        let [s, ok] = trimPrefix(inst, "use ")
+        if (ok) {
+            let [name, dir] = s.split(" ", 2)
+            name = name.trim()
+            dir = dir.trim()
+            if (!name || !dir) {
+                throw new Error(`invalid ${inst}: requires name or dir`)
+            }
+            importMap[name] = dir
+            return
+        }
+        [s, ok] = trimPrefix(inst, "install ")
+        if (ok) {
+            const list = s.split(" ").map(e => e.trim()).map(e => e.split("@", 2)).filter(e => e[0])
+            list.forEach(e => installMap[e[0]] = e[1] || "latest")
+            return
+        }
+    })
+    return { importMap, installMap }
+}
+
+function normalizeImportDir(importMap: ImportMap, npmGolbalRoot): ImportMap {
+    const m: ImportMap = {}
+    Object.keys(importMap || {}).forEach(name => {
+        let dir = importMap[name]
+        let [s, ok] = trimPrefix(dir, "$NPM_ROOT/")
+        if (ok) {
+            dir = path.join(npmGolbalRoot, s)
+        } else {
+            let [s, ok] = trimPrefix(dir, "~/")
+            if (ok) {
+                dir = path.join(process.env["HOME"], s)
+            }
+        }
+        m[name] = dir
+    })
+    return m
+}
+
+const prefix = "//!node-ext:"
+function parseInstructions(s: string): string[] {
+    return iterLines<string>(s, (i, j) => {
+        const line = s.slice(i, j)
+        if (!line.startsWith(prefix)) {
+            return
+        }
+        return line.slice(prefix.length).trim()
+    }).filter(e => e)
 }
 
 run().catch(e => {

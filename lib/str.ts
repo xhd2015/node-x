@@ -19,6 +19,12 @@ export function iterMatch<T>(s: string, next: (s: string, i: number) => number, 
     return res
 }
 
+export function trimPrefix(s: string, prefix: string): [s: string, ok: boolean] {
+    if (s?.startsWith?.(prefix)) {
+        return [s.slice(prefix.length), true]
+    }
+    return [s, false]
+}
 // function testIterLines() {
 //     const s = "abcd\n\nee\nxxx\nee"
 //     iterLines(s, (start, end) => {

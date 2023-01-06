@@ -1,14 +1,18 @@
-export function formatPackageJSON(name: string): string {
+export interface PackageJSONOptions {
+  name?: string
+  installMap?: InstallMap
+}
+export function formatPackageJSON(opts?: PackageJSONOptions): string {
+  const installMap = opts?.installMap || {}
   return `{
-        "name": "${name || "tmp"}",
+        "name": "${opts?.name || "tmp"}",
         "version": "0.0.1",
-        "dependencies": {
-        },
         "scripts": {
             "build": "webpack --config webpack.config.js --progress --mode=production",
             "build-dev": "webpack --config webpack.config.js --progress --mode=development",
             "start":"npm install && npm run build && node bin/run.js \\"$@\\""
         },
+        "dependencies": ${JSON.stringify(installMap)} ,
         "devDependencies": {
             "@babel/cli": "^7.1.0",
             "@babel/core": "^7.1.0",
@@ -22,8 +26,32 @@ export function formatPackageJSON(name: string): string {
     }
     `
 }
+
+export interface InstallMap {
+  [name: string]: string // name -> version
+}
+export interface ImportMap {
+  [name: string]: string // name -> directory, example: "@" => "./"
+}
+
+export interface TsConfigOptions {
+  importMap?: ImportMap
+}
+
 // the @node-ext/ and @/ alias for tsconfig.json makes it simple to import builtin-libs
-export function formatTsConfigJSON(): string {
+export function formatTsConfigJSON(opts?: TsConfigOptions): string {
+  // {
+  //   "@/*":["./*"],
+  //   "@node-ext/*": ["./lib/*"]
+  // }
+  const mapJSON = {}
+  Object.keys(opts?.importMap || {}).forEach(name => {
+    let dir = opts.importMap[name]
+    if (!dir.endsWith("/")) {
+      dir = dir + "/"
+    }
+    mapJSON[name + "/*"] = [dir + "*"]
+  })
   return `{
         // Change this to match your project
         // "include": [],
@@ -51,16 +79,28 @@ export function formatTsConfigJSON(): string {
             // "outDir": "src/debug",
             "moduleResolution": "node",
             "rootDirs": ["./"],
-            "paths": {
-              "@/*":["./*"],
-              "@node-ext/*": ["./lib/*"]
-            }
+            "paths": ${JSON.stringify(mapJSON)}
         },
         "exclude": []
     }`
 }
 
-export function formatWebpackConfigJS(): string {
+export interface WebpackConfigOptions {
+  importMap?: ImportMap
+}
+
+export function formatWebpackConfigJS(opts?: WebpackConfigOptions): string {
+  // example
+  // {
+  //   "@": path.resolve(__dirname, "./"),
+  //   "@node-ext": path.resolve(__dirname, "./lib")
+  // }
+  const aliasMap = []
+  Object.keys(opts?.importMap || {}).forEach(name => {
+    let dir = opts.importMap[name].trim()
+    aliasMap.push(`"${name}": path.resolve(__dirname,"${dir}")`)
+  })
+  const aliasJSON = "{" + aliasMap.join(",\n") + "}"
   return `const path = require("path");
     
     module.exports = {
@@ -103,10 +143,7 @@ export function formatWebpackConfigJS(): string {
         ],
       },
       resolve: {
-        alias: {
-          "@": path.resolve(__dirname, "./"),
-          "@node-ext": path.resolve(__dirname, "./lib")
-        },
+        alias: ${aliasJSON},
         extensions: [".ts", ".js"],
       },
       target: "node",
