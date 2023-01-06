@@ -82,7 +82,11 @@ Example:
   $ nx --help       # show help
   $ nx test.ts      # run test.ts
   $ nx -c test.ts   # open the directory
-  $ nx update       # update node-ext version 
+  $ nx update       # update node-ext version
+
+Compare with \`ts-node\`: you can also use \`ts-node\` to run typescript, e.g. \`npx -g ts-node --transpile-only test.ts\`.
+The advantage that \`nx\` provides is it can provide default \`webpack.config.js\` and \`tsconfg.json\`,
+and with \`--code\` option we can edit ts files with vscode super easily.
 `)
         return
     }
