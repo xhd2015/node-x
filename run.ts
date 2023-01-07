@@ -27,6 +27,7 @@ Options:
       --rm          remove the target dir and exit
       --keep-link   don't resolve the script if it is a link
       --install     install dependencies and exit, i.e. run \`npm install\` in target directory
+      --mode=production|development    default mode: development           
 
 Once installed with \`npm install -g node-ext\`, \`nx\` will be automatically linked to /usr/local/bin so you can just use \`nx\` to run scripts
 
@@ -56,15 +57,16 @@ export interface Options {
     root?: boolean // print the root directory
     install?: boolean
     "keep-link"?: boolean
+    mode?: "development" | "production"
 }
 
 // const debug = false
 export async function run() {
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install")
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode:")
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
-    const { debug, force, clean, rm, root, "print-dir": printDir, install, "keep-link": keepLink } = options
+    const { debug, force, clean, rm, root, "print-dir": printDir, install, "keep-link": keepLink, mode } = options
     let code = options?.code
     const [script, ...args] = parsedArgs
 
@@ -190,13 +192,15 @@ export async function run() {
         needInstall = !dirExists
     }
 
+    const buildCmd = `npm run ${mode === 'production' ? "build" : "build-dev"}`
+
     const redirect = debug ? "" : "&>/dev/null";
     await runCmd(`
     set -e
     (
         cd "$TARGET_DIR"
         ${needInstall ? "npm install --no-audit --no-fund " + redirect : ""}  # npm install is slow so we need a checksum to avoid repeat
-        npm run build-dev ${redirect} ; # dev mode webpack can use build cache
+        ${buildCmd} ${redirect} ; # dev mode webpack can use build cache
     )
     node "$TARGET_DIR/bin/run.js" "$@"
     `, {

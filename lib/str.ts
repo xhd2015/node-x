@@ -25,6 +25,13 @@ export function trimPrefix(s: string, prefix: string): [s: string, ok: boolean] 
     }
     return [s, false]
 }
+export function trimSuffix(s: string, suffix: string): [s: string, ok: boolean] {
+    if (s?.endsWith?.(suffix)) {
+        return [s.slice(0, s.length - suffix.length), true]
+    }
+    return [s, false]
+}
+
 
 export function addSuffix(s: string, suffix: string): string {
     if (s.endsWith(suffix)) {
