@@ -24,7 +24,9 @@ Options:
   -c, --code        open the directory with vscode
   -f, --force       force install modules
       --clean       clean the target dir before writing files
-      --rm          remove the target dir, and do nothing
+      --rm          remove the target dir and exit
+      --keep-link   don't resolve the script if it is a link
+      --install     install dependencies and exit, i.e. run \`npm install\` in target directory
 
 Once installed with \`npm install -g node-ext\`, \`nx\` will be automatically linked to /usr/local/bin so you can just use \`nx\` to run scripts
 
@@ -52,15 +54,17 @@ export interface Options {
     help?: boolean
     rm?: boolean
     root?: boolean // print the root directory
+    install?: boolean
+    "keep-link"?: boolean
 }
 
 // const debug = false
 export async function run() {
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm")
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install")
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
-    const { debug, force, clean, rm, root, "print-dir": printDir } = options
+    const { debug, force, clean, rm, root, "print-dir": printDir, install, "keep-link": keepLink } = options
     let code = options?.code
     const [script, ...args] = parsedArgs
 
@@ -79,9 +83,13 @@ export async function run() {
     }
 
     // find the dir of the target script
-    const scriptPath = path.resolve(script)
+    let scriptPath = path.resolve(script)
     if (!path.isAbsolute(scriptPath)) {
         throw new Error(`failed to make ${script} absolute, the resolved path is ${scriptPath}`)
+    }
+    if (!keepLink) {
+        // this will also validates the file exits
+        scriptPath = await fs.realpath(scriptPath)
     }
     // the resolved path may not exists
 
@@ -170,6 +178,10 @@ export async function run() {
         await runCmd(`code ${gotoOption} "${targetDir}"`, { debug })
         return
     }
+    if (install) {
+        await runCmd(`npm install --no-audit --no-fund`, { debug, cwd: targetDir })
+        return
+    }
     let needInstall = force || prevChecksum !== packageJSONSum;
     if (!needInstall) {
         // check node_modules
@@ -179,28 +191,6 @@ export async function run() {
     }
 
     const redirect = debug ? "" : "&>/dev/null";
-    // node -e 'const {spawn}=require("child_process");const ps=spawn("bash",["-c","cd node-ext;npm install"]);ps.stdout.on("data", e => process.stdout.write(e));ps.stderr.on("data", e => process.stderr.write(e))'
-    // NOTE: the following workaround won't work as long as we are invoking from npx.
-    if (false && needInstall) {
-        // const ps = spawn("npm", ["install","--no-audit","--no-fund"],{cwd: targetDir})
-        const ps = spawn("bash", [`-e${debug ? "x" : ""}c`, "pwd;npm install --no-audit --no-fund;sleep 5;npm install;sleep 5; npm install"], { cwd: targetDir })
-        if (debug) {
-            ps.stdout.on("data", e => process.stdout.write(e));
-            ps.stderr.on("data", e => process.stderr.write(e));
-        }
-        await new Promise((resolve, reject) => {
-            ps.on('error', function (e) {
-                reject(e)
-            })
-            ps.on('close', function (code) {
-                if (code !== 0) {
-                    reject(new Error(`exit code: ${code}`))
-                } else {
-                    resolve(code)
-                }
-            })
-        });
-    }
     await runCmd(`
     set -e
     (
