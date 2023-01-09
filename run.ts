@@ -209,6 +209,11 @@ export async function run() {
         env: {
             "TARGET_DIR": targetDir,
         }
+    }).catch(e => {
+        if (debug) {
+            console.error(e?.message || e)
+        }
+        process.exit(1)
     })
 }
 

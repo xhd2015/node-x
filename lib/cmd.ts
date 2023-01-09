@@ -7,6 +7,7 @@ export interface RunOptions {
     debug?: boolean
     args?: string[]
     env?: { [env: string]: string }
+    description?: string // description text for error message
     needStdout?: boolean
 }
 
@@ -24,7 +25,6 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
         ps.stdout.on('data', e => process.stdout.write(e))
     }
 
-
     return new Promise((resolve, reject) => {
         ps.on('error', function (e) {
             // console.log("on error:", e)
@@ -32,7 +32,22 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
         })
         ps.on('close', function (code) {
             if (code !== 0) {
-                reject(new Error(`exit code: ${code}`))
+                let description = opts?.description
+                const limit = 100
+                if (!description) {
+                    if (cmd.length <= limit) {
+                        description = cmd
+                    } else {
+                        const cmdStr = cmd.split("\n").map(line => line.trim()).join("\n")
+                        if (cmdStr.length <= limit) {
+                            description = cmdStr
+                        } else {
+                            description = cmdStr.slice(0, limit) + "..."
+                        }
+                    }
+                }
+                const errMsg = `exit code ${code}: ${description}`
+                reject(new Error(errMsg))
             } else {
                 resolve({ exitCode: code, stdout })
             }
