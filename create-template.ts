@@ -4,12 +4,13 @@ export interface PackageJSONOptions {
 }
 export function formatPackageJSON(opts?: PackageJSONOptions): string {
   const installMap = opts?.installMap || {}
+  // using 'node ./node_modules/.bin/webpack' instead of 'webpack' helps resolve permission problem,sometimes webpack's x permission is missing
   return `{
         "name": "${opts?.name || "tmp"}",
         "version": "0.0.1",
         "scripts": {
-            "build": "webpack --config webpack.config.js --progress --mode=production",
-            "build-dev": "webpack --config webpack.config.js --progress --mode=development",
+            "build": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=production",
+            "build-dev": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=development",
             "start":"npm install && npm run build && node bin/run.js \\"$@\\""
         },
         "dependencies": ${JSON.stringify(installMap)} ,
