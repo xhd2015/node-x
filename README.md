@@ -55,3 +55,24 @@ You can work this out by temporariy renaming that `tsconfig.json` to `tsconfig.j
 ```bash
 npm install --save-dev @types/node
 ```
+
+# For Maintenance of This Project
+
+## Development
+
+The project has a `webpack.config.js`, which pack `run.ts` into `bin/run.js`.
+`bin/run.js` is ran by invoking `nx`, and `nx` is linked to `/usr/local/bin/nx`.
+
+When running `nx` with given file `/path/to/x.ts`, `nx` will create a temporary directory called `$TMP/path/to`, where `$TMP` refers to `/tmp` on Linux, and other temp dir defined by specific OS. And it will link the `$TMP/path/to/src` to `/path/to`.
+
+In the generated `webpack.config.js`, `@node-ext` will resolved to `NPM_ROOT/node-ext/lib`, where `NPM_ROOT` is the path to global npm node_modules root.
+
+The script `npm run install-local` generates `bin/run.js` and copy that to `NPM_ROOT/node-ext/bin/run.js`, thus `install-local` installs local modifications of `run.ts` to global.
+
+If you added some file in `lib`, you can run `npm run install-local-lib`.
+
+## Publish
+
+Change version in package.json,and run `npm publish`.
+
+You can publish before committing changes to github.

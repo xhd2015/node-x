@@ -14,7 +14,7 @@
         // Removing this would place the .d.ts files
         // next to the .js files
         //   "outDir": "dist"
-        "target": "es6",
+        "target": "ES2021",
         "lib": [
             "ES2021",
             "ES2021.String"

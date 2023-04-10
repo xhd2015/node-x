@@ -62,7 +62,13 @@ export interface Options {
 
 // const debug = false
 export async function run() {
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode:")
+    const nxFlags = process.env["NX_FLAGS"]
+    let argv = [...process.argv.slice(2)]
+    if (nxFlags) {
+        const headFlags = nxFlags.split(" ").map(e => e.trim())
+        argv = [...headFlags, ...argv]
+    }
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode:", argv)
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)

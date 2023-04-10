@@ -1,6 +1,7 @@
 
 
 import { run } from "@node-ext/cmd"
+import { pwd } from "@node-ext/shell"
 
 // example:
 //#!node-ext: install a c@1.2.0
@@ -8,6 +9,7 @@ import { run } from "@node-ext/cmd"
 
 console.log("hello world")
 
-console.log("you have my knowledge")
+console.log("pwd:", pwd())
+
 
 run("echo hello")

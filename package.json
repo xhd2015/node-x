@@ -1,11 +1,11 @@
 {
     "name": "node-ext",
-    "version": "0.0.53",
-    "dependencies": {},
+    "version": "0.0.54",
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
         "build-dev": "webpack --config webpack.config.js --progress --mode=development",
         "install-local": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\"",
+        "install-local-lib": "cp -R lib/* \"$(npm -g root)/node-ext/lib/\"",
         "prepack": "npm run build",
         "postinstall": "node bin/install.js"
     },
@@ -16,7 +16,7 @@
         "@babel/cli": "^7.1.0",
         "@babel/core": "^7.1.0",
         "@babel/preset-env": "^7.1.0",
-        "@types/node": "^18.11.18",
+        "@types/node": "^18.15.11",
         "babel-loader": "^8.1.0",
         "file-loader": "^6.0.0",
         "ts-loader": "^9.3.1",
