@@ -22,7 +22,8 @@ export function formatPackageJSON(opts?: PackageJSONOptions): string {
             "babel-loader": "^8.1.0",
             "file-loader": "^6.0.0",
             "ts-loader": "^9.3.1",
-            "webpack-cli": "^4.10.0"
+            "webpack-cli": "^4.10.0",
+            "@types/node": "^18.15.11"
         }
     }
     `
@@ -69,7 +70,7 @@ export function formatTsConfigJSON(opts?: TsConfigOptions): string {
             // Removing this would place the .d.ts files
             // next to the .js files
             //   "outDir": "dist"
-            "target": "es6",
+            "target": "ES2021",
             "lib": [
                 "ES2021",
                 "ES2021.String"
