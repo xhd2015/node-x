@@ -7,6 +7,8 @@ import { createHash } from 'crypto'
 import { spawn } from "child_process"
 import { iterLines, trimPrefix } from "./lib/str"
 
+import { files as templateFiles } from "./template"
+
 
 // You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
 // NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
@@ -17,17 +19,22 @@ import { iterLines, trimPrefix } from "./lib/str"
 const help = `Usage: nx [OPTIONS] <script> [--] [script-args...]
 
 Options:
-  -h, --help        show help message
-  -p, --print-dir   print the generated directory
-      --root        print root directory and exit
-  -x, --debug       log debug info
-  -c, --code        open the directory with vscode
-  -f, --force       force install modules
-      --clean       clean the target dir before writing files
-      --rm          remove the target dir and exit
-      --keep-link   don't resolve the script if it is a link
-      --install     install dependencies and exit, i.e. run \`npm install\` in target directory
-      --mode=production|development    default mode: development           
+  -h, --help          show help message
+  -p, --print-dir     print the generated directory
+      --root          print root directory and exit
+  -x, --debug         log debug info
+  -c, --code          open the directory with vscode
+  -f, --force         force install modules
+      --clean         clean the target dir before writing files
+      --rm            remove the target dir and exit
+      --keep-link     don't resolve the script if it is a link
+      --install       install dependencies and exit, i.e. run \`npm install\` in target directory
+      --mode=production|development    default mode: development
+      --template NAME used with nx create,by default cmd.ts is used. If NAME is list,list all available names
+
+Subcommands:
+  update            update nx
+  create FILE.ts    create a typescript file with given template          
 
 Once installed with \`npm install -g node-ext\`, \`nx\` will be automatically linked to /usr/local/bin so you can just use \`nx\` to run scripts
 
@@ -58,6 +65,8 @@ export interface Options {
     install?: boolean
     "keep-link"?: boolean
     mode?: "development" | "production"
+
+    template?: string
 }
 
 // const debug = false
@@ -68,7 +77,7 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode:", argv)
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode: template:", argv)
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
@@ -87,6 +96,39 @@ export async function run() {
     }
     if (script === 'update') {
         await runCmd("npm remove -g node-ext; npm install -g node-ext", { debug })
+        return
+    } else if (script === 'create') {
+        if (options.template === 'list') {
+            const templates = Object.keys(templateFiles).map(e => {
+                if (e.endsWith(".ts")) {
+                    e = e.slice(0, e.length - ".ts".length)
+                }
+                return e
+            })
+            console.log(templates.join("\n"))
+            return
+        }
+        if (!args?.[0]) {
+            throw new Error(`requires script name: nx create FILE`)
+        }
+        let exists = true
+        await fs.stat(args[0]).catch(() => {
+            exists = false
+        })
+        if (exists) {
+            throw new Error(`file already exists: ${args[0]}`)
+        }
+
+        let name = options.template
+        if (!name) {
+            name = "cmd.ts"
+        }
+        const content = templateFiles[name] || templateFiles[name + ".ts"]
+        if (!content) {
+            throw new Error(`template ${name} does not exist`)
+        }
+        await fs.writeFile(args[0], content, { encoding: "utf-8" })
+        await runCmd(`nx --code ${args[0]}`)
         return
     }
 
