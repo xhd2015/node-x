@@ -11,7 +11,7 @@ export function formatPackageJSON(opts?: PackageJSONOptions): string {
         "scripts": {
             "build": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=production",
             "build-dev": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=development",
-            "start":"npm install && npm run build && node bin/run.js \\"$@\\""
+            "start":"npm install && npm run build && node bin/run.js -- \\"$@\\""
         },
         "dependencies": ${JSON.stringify(installMap)} ,
         "devDependencies": {
