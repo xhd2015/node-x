@@ -168,8 +168,13 @@ export async function run() {
     // install instructions
     const [fileInstr, npmRoot] = await Promise.all([skipFile ? null : parseFileInstructions(scriptPath), runOutput("npm -g root")])
 
+    const installImportMap = {}
+    Object.keys(fileInstr?.installMap || {}).forEach(pkg => {
+        installImportMap[pkg] = `./node_modules/${pkg}`
+    })
     const importMap: ImportMap = {
         ...normalizeImportDir(fileInstr?.importMap, npmRoot),
+        ...installImportMap,
         "@": "./",
         "@node-ext": path.resolve(npmRoot, "node-ext/lib"),
     }

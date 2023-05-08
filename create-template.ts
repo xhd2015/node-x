@@ -4,29 +4,32 @@ export interface PackageJSONOptions {
 }
 export function formatPackageJSON(opts?: PackageJSONOptions): string {
   const installMap = opts?.installMap || {}
+  const devInstallMap = {
+    "@babel/cli": "^7.1.0",
+    "@babel/core": "^7.1.0",
+    "@babel/preset-env": "^7.1.0",
+    "babel-loader": "^8.1.0",
+    "file-loader": "^6.0.0",
+    "ts-loader": "^9.3.1",
+    "webpack-cli": "^4.10.0",
+    "@types/node": "^18.15.11",
+  }
+  Object.keys(installMap || {}).forEach(pkg => {
+    devInstallMap[`@types/${pkg}`] = "latest"
+  })
+  const conf = {
+    "name": `${opts?.name || "tmp"}`,
+    "version": "0.0.1",
+    "scripts": {
+      "build": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=production",
+      "build-dev": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=development",
+      "start": "npm install && npm run build && node bin/run.js"
+    },
+    "dependencies": installMap,
+    "devDependencies": devInstallMap
+  }
   // using 'node ./node_modules/.bin/webpack' instead of 'webpack' helps resolve permission problem,sometimes webpack's x permission is missing
-  return `{
-        "name": "${opts?.name || "tmp"}",
-        "version": "0.0.1",
-        "scripts": {
-            "build": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=production",
-            "build-dev": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=development",
-            "start":"npm install && npm run build && node bin/run.js \\"$@\\""
-        },
-        "dependencies": ${JSON.stringify(installMap)} ,
-        "devDependencies": {
-            "@babel/cli": "^7.1.0",
-            "@babel/core": "^7.1.0",
-            "@babel/preset-env": "^7.1.0",
-            "@types/node": "^18.11.18",
-            "babel-loader": "^8.1.0",
-            "file-loader": "^6.0.0",
-            "ts-loader": "^9.3.1",
-            "webpack-cli": "^4.10.0",
-            "@types/node": "^18.15.11"
-        }
-    }
-    `
+  return JSON.stringify(conf, null, "    ")
 }
 
 export interface InstallMap {
