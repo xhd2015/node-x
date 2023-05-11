@@ -43,7 +43,7 @@ async function run() {
     await init()
 
     // argv: [node, sync.js, ...]
-    const { args: [cmd, ...args], options } = parseOptions<Options>(help, "h,help x,debug f,force")
+    const { args: [cmd, ...args], options } = parseOptions<Options>(help, "h,help x,debug f,force", { stopAtFirstArg: true })
     const { debug, force, pause } = options
     if (!cmd) {
         throw new Error("requires cmd")

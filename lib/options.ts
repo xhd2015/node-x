@@ -39,20 +39,39 @@ export interface Options<T> {
 
 type OptionRepeat = "zero" | "many" | "one"
 
+export interface ParseOptions {
+    argv?: string[]
+
+    // stop parsing flags when seeing the first arg
+    // usually used for sub-commands
+    stopAtfirstArg?: boolean
+}
+
 // - opts  description  "h,help a b,bang c,cool: d,dark:=m e,earray::"
 //    separated by space, each can have a short and long option name
 // d,dark:=m   short name is d, long name is dark, accept one option, the =m suffix is a grouping suffix, meaning if multiple option has =m, then the last option x with =m will have "m":x set.
-export function parse<T>(help: string, opts: string, argv?: string[]): Options<T> {
+export function parse<T>(help: string, opts: string, argv?: string[] | ParseOptions, parseOpts?: ParseOptions): Options<T> {
+    // handle overload
+    if (argv) {
+        // console.log("shift1:", argv)
+        if (!parseOpts && !Array.isArray(argv)) {
+            // console.log("shift:", argv)
+            parseOpts = argv as any
+            argv = parseOpts?.argv
+        }
+    }
     if (argv == null) {
         //  process.argv[0] = node
         //  process.argv[1] = jsfile
         argv = process.argv.slice(2)
     }
+    // console.log("argv:", argv)
     const optList = opts.split(/\s+/)
     // map a option to target option
     const optionNameMap = {}
     const optionRepeat: { [option: string]: OptionRepeat } = {} // zero, one, many
     const aliasMap = {}
+    const stopAtfirstArg = parseOpts?.stopAtfirstArg
 
     for (let opt of optList) {
         let optAlias
@@ -156,6 +175,7 @@ export function parse<T>(help: string, opts: string, argv?: string[]): Options<T
     }
     // now, parse the argv
     for (; i < argv.length; i++) {
+        // console.log("shit:", argv, i)
         const arg = argv[i]
         if (arg == '--') {
             args.push(...argv.slice(i + 1))
@@ -196,7 +216,14 @@ export function parse<T>(help: string, opts: string, argv?: string[]): Options<T
                 emitArg(optName[optName.length - 1], AUTO_ARG_NULL_OR_BOOL)
             }
         } else {
-            args.push(arg)
+            // console.log("stopAtfirstArg:", stopAtfirstArg)
+            if (stopAtfirstArg) {
+                // console.log("stop:", argv, i)
+                args.push(...argv.slice(i))
+                break
+            } else {
+                args.push(arg)
+            }
         }
     }
     function getHelp() {

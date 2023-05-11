@@ -23,16 +23,8 @@ export interface Options {
 
 async function run() {
     // argv: [node, sync.js, ...]
-    const { args: [cmd, ...args], options } = parseOptions<Options>(help, "h,help x,debug f,force", { stopAtFirstArg: true })
-    const { debug, force, pause } = options
-    if (!cmd) {
-        throw new Error("requires cmd")
-    }
-    if (cmd === 'flush') {
-        // do flush
-    } else {
-        throw new Error(`unknown cmd: ${cmd}`)
-    }
+    const { args, options } = parseOptions<Options>(help, "h,help x,debug f,force a", { stopAtFirstArg: true })
+    console.log("args:", args)
 }
 
 run().catch(e => {
