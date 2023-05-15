@@ -192,21 +192,25 @@ export function sleep(n) {
 //   await exec(['bash','-c',''])
 // returns: output string, or if error {errcode,cmd,message}
 // you can check if(res.errcode){ /* handle error */}
-export async function exec(cmd, options) {
+export interface ExecOptions {
+	input?: string
+}
+export async function exec(cmd: string | string[], options?: ExecOptions) {
+	let cmdStr: string = ''
 	if (cmd instanceof Array) {
-		cmd = escape(cmd)
+		cmdStr = escape(cmd)
 	}
 	// stderr is output parent's stderr
 	// stdout is returned as result
 	//
 	try {
 		return new Promise((resolve, reject) => {
-			child_process.exec(cmd, { encoding: 'utf-8', ...options }, (err, stdout, stderr) => {
+			const ps = child_process.exec(cmdStr, { encoding: 'utf-8', ...options }, (err, stdout, stderr) => {
 				const outStr = chomp(stdout?.toString('utf-8') || "")
 				const errStr = chomp(stderr?.toString('utf-8') || "")
 				if (err) {
-					err.cmd = cmd
-					err.message = `command failed(exit status not 0): ${cmd}, caused by ${err.message}, stdErr:${errStr}, stdout:${outStr}`
+					err.cmd = cmdStr
+					err.message = `command failed(exit status not 0): ${cmdStr}, caused by ${err.message}, stdErr:${errStr}, stdout:${outStr}`
 					if (err.errcode === null || err.errcode === undefined) {
 						err.errcode = 1
 					}
@@ -215,6 +219,10 @@ export async function exec(cmd, options) {
 				}
 				resolve(outStr)
 			})
+			if (options?.input) {
+				ps.stdin.write(options?.input)
+				ps.stdin.end()
+			}
 		})
 		// sync version
 		// let c = child_process.execSync(cmd, { encoding: 'utf-8', ...options })
