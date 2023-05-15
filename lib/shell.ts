@@ -199,6 +199,8 @@ export async function exec(cmd: string | string[], options?: ExecOptions) {
 	let cmdStr: string = ''
 	if (cmd instanceof Array) {
 		cmdStr = escape(cmd)
+	} else {
+		cmdStr = cmd as string
 	}
 	// stderr is output parent's stderr
 	// stdout is returned as result
