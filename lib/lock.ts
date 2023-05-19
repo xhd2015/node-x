@@ -15,7 +15,7 @@ export interface Locker {
 
 // try to lock
 // consult: https://nodejs.org/api/fs.html
-export async function lock(path: string, timeoutMs: number, preempty?: boolean): Promise<Locker | undefined> {
+export async function lock(path: string, timeoutMs: number, preempty?: boolean): Promise<Locker> {
     if (!(timeoutMs > 0)) {
         throw new Error("requires timeout")
     }
@@ -65,6 +65,7 @@ export async function lock(path: string, timeoutMs: number, preempty?: boolean):
             await writeFile(pathLock, expireTime, { encoding: 'utf-8', flag: "w" })
         }
     }
+    let unlocked = false
 
     return {
         path: path,
@@ -72,6 +73,10 @@ export async function lock(path: string, timeoutMs: number, preempty?: boolean):
         // the unlock is not guranteed to unlock the same lock, but it will
         // try the best to do that
         unlock: async () => {
+            if (unlocked) {
+                return
+            }
+            unlocked = true
             // unlock if expire the same
             const content = await readFile(pathLock, { encoding: 'utf-8' })
             if (content !== expireTime) {
@@ -110,10 +115,19 @@ export async function locked(path: string, timeoutMs: number, preempty: boolean,
     if (!locker) {
         return false
     }
+    let unlocked = false
+    process.on('exit', () => {
+        console.log("DEBUG clean lock file:", path)
+        if (!unlocked) {
+            unlocked = true
+            locker.unlock()
+        }
+    })
     try {
         await action(locker)
         return true
     } finally {
+        unlocked = true
         await locker.unlock()
     }
 }
