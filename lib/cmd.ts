@@ -9,6 +9,7 @@ export interface RunOptions {
     env?: { [env: string]: string }
     description?: string // description text for error message
     needStdout?: boolean
+    pipeStdin?: boolean
 }
 
 // return exit code
@@ -17,6 +18,9 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
         cwd: opts?.cwd,
         env: { ...process.env, ...opts?.env },
     })
+    if (opts?.pipeStdin) {
+        process.stdin.pipe(ps.stdin, { end: true })
+    }
     ps.stderr.on('data', e => process.stderr.write(e))
     let stdout = ''
     if (opts?.needStdout) {

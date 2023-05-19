@@ -261,7 +261,8 @@ export async function run() {
         args: args,
         env: {
             "TARGET_DIR": targetDir,
-        }
+        },
+        pipeStdin: true,
     }).catch(e => {
         if (debug) {
             console.error(e?.message || e)
