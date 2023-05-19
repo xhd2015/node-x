@@ -55,6 +55,11 @@ export interface Options {
     debug?: boolean
     code?: boolean // --code
 
+    fast?: boolean // fast mode
+
+    // rebuild the package
+    rebuild?: boolean
+
     clean?: boolean
 
     force?: boolean
@@ -77,7 +82,7 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtfirstArg: true })
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtfirstArg: true })
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
@@ -237,25 +242,28 @@ export async function run() {
         await runCmd(`npm install --no-audit --no-fund`, { debug, cwd: targetDir })
         return
     }
-    let needInstall = force || prevChecksum !== packageJSONSum;
+    let needInstall = force || prevChecksum === "" || options?.rebuild || (!options?.fast && prevChecksum !== packageJSONSum);
     if (!needInstall) {
         // check node_modules
         let dirExists = false
         await fs.stat(path.join(targetDir, "node_modules")).then(e => dirExists = e.isDirectory()).catch(e => { })
         needInstall = !dirExists
     }
+    let needBuild = force || options?.rebuild || !options?.fast
 
     const buildCmd = `npm run ${mode === 'production' ? "build" : "build-dev"}`
+    const redirect = (options?.rebuild || debug) ? "" : "&>/dev/null";
 
-    const redirect = debug ? "" : "&>/dev/null";
+    const actualCmd = ` node "$TARGET_DIR/bin/run.js" "$@"`
+
     await runCmd(`
     set -e
     (
         cd "$TARGET_DIR"
         ${needInstall ? "npm install --no-audit --no-fund " + redirect : ""}  # npm install is slow so we need a checksum to avoid repeat
-        ${buildCmd} ${redirect} ; # dev mode webpack can use build cache
+        ${needBuild ? `${buildCmd} ${redirect} ;` : ''} # dev mode webpack can use build cache
     )
-    node "$TARGET_DIR/bin/run.js" "$@"
+    ${options?.rebuild ? '' : actualCmd}
     `, {
         debug,
         args: args,
