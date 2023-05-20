@@ -34,6 +34,14 @@ Example:
 //!node-ext: use my-lib ~/my-lib
 ```
 
+# Usage examples
+
+## Watch
+
+```bash
+nx --dev-watch dev.go --dev-watch-cmd '$NX_CMD func-to-ast|$NX_CMD ast-to-definitions' gen.ts
+```
+
 # Why not using `npx`
 
 `npx` is problemtic with `npm install` in a temp directory.So we prefer to not use `npx`, rather just use `node`.

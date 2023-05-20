@@ -1,5 +1,6 @@
 
 import * as child_process from "child_process"
+import { Readable } from "stream"
 import { parse as parseOptions } from "./options"
 
 export interface RunOptions {
@@ -9,7 +10,9 @@ export interface RunOptions {
     env?: { [env: string]: string }
     description?: string // description text for error message
     needStdout?: boolean
-    pipeStdin?: boolean
+    stdin?: Readable
+
+    onCreated?: (ps: child_process.ChildProcessWithoutNullStreams) => void
 }
 
 // return exit code
@@ -18,8 +21,11 @@ export async function run(cmd: string, opts?: RunOptions): Promise<{ exitCode: n
         cwd: opts?.cwd,
         env: { ...process.env, ...opts?.env },
     })
-    if (opts?.pipeStdin) {
-        process.stdin.pipe(ps.stdin, { end: true })
+    if (opts?.onCreated) {
+        opts.onCreated(ps)
+    }
+    if (opts?.stdin) {
+        opts.stdin.pipe(ps.stdin, { end: true })
     }
     ps.stderr.on('data', e => process.stderr.write(e))
     let stdout = ''

@@ -4,11 +4,12 @@ import { tmpdir } from "os"
 import { formatPackageJSON, formatTsConfigJSON, formatWebpackConfigJS, ImportMap, InstallMap } from "./create-template"
 import { parseOptions, run as runCmd, runOutput } from "./lib/cmd"
 import { createHash } from 'crypto'
-import { spawn } from "child_process"
+import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { iterLines, trimPrefix } from "./lib/str"
 
+import { debounce } from "lodash"
 import { files as templateFiles } from "./template"
-
+import * as chokidar from 'chokidar'
 
 // You can set \`nx\` as an alias to \`node "$(npm -g root)/node-ext/bin/node-ext.js"\` to simplify the usage.
 // NOTE: you must not use with npx: \`npx -g node-ext\`, npx simply does make \`npm install\` fails without fair reason.
@@ -33,7 +34,11 @@ Options:
       --fast           skip npm install and webpack build, just run the script
       --rebuild        run npm install and webpack build
       --watch          start webpack --watch
-      
+      --dev-watch FILE start webpack --watch, and trigger run when input FILE changes
+      --dev-watch-run CMD   used with --dev-watch, by default invoking the script.If provided, will run it with the following variable set:
+                            NX_INPUT the file to be watched
+                            NX_RUN   the cmd that can be referenced      
+
 Options for create:
       --template NAME  used with nx create,by default cmd.ts is used. If NAME is list,list all available names
 
@@ -66,6 +71,8 @@ export interface Options {
     // rebuild the package
     rebuild?: boolean
     watch?: boolean
+    "dev-watch"?: string
+    "dev-watch-run"?: string
 
     clean?: boolean
 
@@ -79,6 +86,7 @@ export interface Options {
     mode?: "development" | "production"
 
     template?: string
+
 }
 
 // const debug = false
@@ -89,9 +97,14 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtFirstArg: true })
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch dev-watch: dev-watch-run: root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtFirstArg: true })
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
+    const devWatchFile = options?.["dev-watch"]
+    const devWatch = !!devWatchFile
+    if (devWatch && !devWatchFile) {
+        throw new Error("requires dev-watch file")
+    }
     // console.log("options:", options)
     const { debug, force, clean, rm, root, "print-dir": printDir, install, "keep-link": keepLink, mode } = options
     let code = options?.code
@@ -157,6 +170,12 @@ export async function run() {
     const targetDir = path.join(syncDir, scriptAbsDir)
     if (debug) {
         console.error("target dir:", targetDir)
+    }
+    let devWatchAbsFile = devWatchFile
+    let tryCreateDevWatchFile = false
+    if (devWatchFile && !path.isAbsolute(devWatchAbsFile)) {
+        devWatchAbsFile = path.join(targetDir, devWatchFile)
+        tryCreateDevWatchFile = true
     }
 
     let prevChecksum: string
@@ -249,12 +268,15 @@ export async function run() {
 
     let needBuild = !options?.fast || force || options?.rebuild
 
-    let needCmd = !(options?.rebuild || options?.watch)
+    let needTargetCmd = !(options?.rebuild || options?.watch || devWatch)
 
     let buildSubCmd = "build"
     let buildRedirect = ""
-    if (options?.watch) {
+    if (options?.watch || devWatch) {
         buildSubCmd = mode === "production" ? "watch" : "watch-dev"
+        if (devWatch && !options?.debug) {
+            buildRedirect = "&>/dev/null"
+        }
     } else {
         buildSubCmd = mode === 'production' ? "build" : "build-dev"
         if (!(options?.rebuild || options?.debug)) {
@@ -263,30 +285,107 @@ export async function run() {
     }
 
     const buildCmd = `npm run ${buildSubCmd}`
+    const targetCmd = `node "$TARGET_DIR/bin/run.js" "$@"`
 
-    const actualCmd = ` node "$TARGET_DIR/bin/run.js" "$@"`
+    const actions = []
 
-    await runCmd(`
-    set -e
+    // why not cwd=TARGET_DIR? becuase we want cwd be where the user is
+    const commonOpts = { debug, args, env: { TARGET_DIR: targetDir } }
+    const watchAndRunTarget = runCmd(`
+    set -eu
     (
         cd "$TARGET_DIR"
         ${needInstallByOptions ? "npm install --no-audit --no-fund " + installRedirect : ""}  # npm install is slow so we need a checksum to avoid repeat
         ${needBuild ? `${buildCmd} ${buildRedirect} ;` : ''} # dev mode webpack can use build cache
     )
-    ${needCmd ? actualCmd : ''}
+    ${needTargetCmd ? targetCmd : ''}
     `, {
-        debug,
-        args: args,
-        env: {
-            "TARGET_DIR": targetDir,
-        },
-        pipeStdin: true,
+        ...commonOpts,
+        stdin: needTargetCmd && process.stdin,
     }).catch(e => {
         if (debug) {
             console.error(e?.message || e)
         }
         process.exit(1)
     })
+    actions.push(watchAndRunTarget)
+    if (devWatch) {
+        // ensure parent dir created
+        await fs.mkdir(path.dirname(devWatchAbsFile), { recursive: true });
+        if (tryCreateDevWatchFile) {
+            let exists = true
+            await fs.stat(devWatchAbsFile).catch(() => {
+                exists = false
+            })
+            if (!exists) {
+                // console.log("creating dev watch file:", devWatchFile)
+                await fs.writeFile(devWatchAbsFile, "", { encoding: 'utf-8' })
+            }
+        }
+
+        // watch
+        let lastPs: ChildProcessWithoutNullStreams
+        let lastStdin: fs.FileHandle
+        const clear = async () => {
+            if (lastPs) {
+                lastPs.kill()
+                lastPs = undefined
+            }
+            // if (lastStdin) {
+            // gc will close it
+            // await lastStdin.close()
+            // lastStdin = undefined
+            // }
+        }
+
+        const runJs = path.join(targetDir, "bin", "run.js")
+
+        let subOpts = { ...commonOpts }
+        let subCmd = targetCmd
+        if (options?.["dev-watch-run"]) {
+            subOpts.env = {
+                ...subOpts.env,
+                "NX_INPUT": devWatchAbsFile,
+                "NX_CMD": `node ${runJs}`,
+            } as any
+            subCmd = options?.["dev-watch-run"]
+        }
+        const runTargetCmdRaw = async () => {
+            if (debug) {
+                console.log("DEBUG run dev watch")
+            }
+            await clear()
+
+            await fs.open(devWatchAbsFile).then(e => lastStdin = e).catch(() => { /*ignore*/ })
+            await runCmd(`set -eu
+            ${subCmd}
+            `, {
+                ...subOpts,
+                stdin: lastStdin.createReadStream(),
+                onCreated(ps) {
+                    lastPs = ps
+                }
+            }).catch(e => {
+                if (options?.debug) {
+                    console.error("DEBUG cmd err:", e)
+                }
+            })
+        }
+        const runTargetCmd = debounce(runTargetCmdRaw, 400)
+
+        const watcher = chokidar.watch([devWatchAbsFile, runJs])
+        runTargetCmd()
+        // initial delay 3s
+        await new Promise(resolve => setTimeout(resolve, 3000))
+
+        watcher.on('all', runTargetCmd)
+        process.on('exit', () => {
+            clear()
+        })
+        // never return
+        await new Promise(resolve => { })
+    }
+    await Promise.all(actions)
 }
 
 export function toDirName(fileName: string): string {
@@ -403,6 +502,9 @@ function parseInstructions(s: string): string[] {
     }).filter(e => e)
 }
 
+// a nice way to escape builtin webpack?
+
+// native module requires fsevents.node, cannot be used webpack
 run().catch(e => {
     // console.error(e) // with trace
     console.error(e.message)

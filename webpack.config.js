@@ -54,6 +54,9 @@ module.exports = {
     },
     extensions: [".ts", ".js"],
   },
+  externals: {
+    fsevents: "require('fsevents')"
+  },
   target: "node",
   node: {
     // __filename: true,
