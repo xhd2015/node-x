@@ -23,6 +23,7 @@ export function formatPackageJSON(opts?: PackageJSONOptions): string {
     "scripts": {
       "build": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=production",
       "build-dev": "node ./node_modules/.bin/webpack --config webpack.config.js --progress --mode=development",
+      "watch-dev": "node ./node_modules/.bin/webpack --watch --config webpack.config.js --progress --mode=development",
       "start": "npm install && npm run build && node bin/run.js"
     },
     "dependencies": installMap,

@@ -31,6 +31,9 @@ Options:
       --install       install dependencies and exit, i.e. run \`npm install\` in target directory
       --mode=production|development    default mode: development
       --template NAME used with nx create,by default cmd.ts is used. If NAME is list,list all available names
+      --fast           skip npm install and webpack build, just run the script
+      --rebuild        run npm install and webpack build
+      --watch          start webpack --watch
 
 Subcommands:
   update            update nx
@@ -59,6 +62,7 @@ export interface Options {
 
     // rebuild the package
     rebuild?: boolean
+    watch?: boolean
 
     clean?: boolean
 
@@ -82,7 +86,7 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtfirstArg: true })
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtfirstArg: true })
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
@@ -169,65 +173,71 @@ export async function run() {
     if (scriptAbsDir === syncDir || scriptAbsDir.startsWith(syncDir)) {
         throw new Error(`${script} resides in nx-sync dir: ${syncDir}, try another location`)
     }
-
-    // install instructions
-    const [fileInstr, npmRoot] = await Promise.all([skipFile ? null : parseFileInstructions(scriptPath), runOutput("npm -g root")])
-
-    const installImportMap = {}
-    Object.keys(fileInstr?.installMap || {}).forEach(pkg => {
-        installImportMap[pkg] = `./node_modules/${pkg}`
-    })
-    const importMap: ImportMap = {
-        ...normalizeImportDir(fileInstr?.importMap, npmRoot),
-        ...installImportMap,
-        "@": "./",
-        "@node-ext": path.resolve(npmRoot, "node-ext/lib"),
-    }
-
     const targetDir = path.join(syncDir, scriptAbsDir)
     if (debug) {
         console.error("target dir:", targetDir)
     }
-    if (clean || rm) {
-        await fs.rm(targetDir, { recursive: true })
-        if (rm) {
-            return
+
+    let prevChecksum: string
+    let packageJSONSum: string
+
+    let needWriteFiles = !options?.fast
+    if (needWriteFiles) {
+        // install instructions
+        const [fileInstr, npmRoot] = await Promise.all([skipFile ? null : parseFileInstructions(scriptPath), runOutput("npm -g root")])
+
+        const installImportMap = {}
+        Object.keys(fileInstr?.installMap || {}).forEach(pkg => {
+            installImportMap[pkg] = `./node_modules/${pkg}`
+        })
+        const importMap: ImportMap = {
+            ...normalizeImportDir(fileInstr?.importMap, npmRoot),
+            ...installImportMap,
+            "@": "./",
+            "@node-ext": path.resolve(npmRoot, "node-ext/lib"),
         }
+
+        if (clean || rm) {
+            await fs.rm(targetDir, { recursive: true })
+            if (rm) {
+                return
+            }
+        }
+        await fs.mkdir(targetDir, { recursive: true })
+
+        // create the templates
+        const packageJSON = formatPackageJSON({ name: "tmp", installMap: fileInstr?.installMap })
+        const tsConfigJSON = formatTsConfigJSON({ importMap })
+        const webpackConfigJS = formatWebpackConfigJS({ importMap })
+
+        // the __dirname is bin
+        // console.log("__dirname:", __dirname)
+        // const libDir = path.resolve(__dirname, "../lib")
+        // const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
+
+        const checksumFile = "package.json.checksum"
+        prevChecksum = force ? "" : await fs.readFile(path.join(targetDir, checksumFile), { encoding: "utf-8" }).catch(e => { return "" })
+        packageJSONSum = createHash("md5").update(packageJSON).digest("hex")
+
+        const files = {
+            "package.json": packageJSON,
+            [checksumFile]: packageJSONSum,
+            "tsconfig.json": tsConfigJSON,
+            "webpack.config.js": webpackConfigJS,
+        }
+        if (!skipFile) {
+            // it must be a run.ts, not run.js to work out the missing tsconfig.json
+            files["run.ts"] = `import "${scriptPath}"`
+        }
+        await Promise.all([
+            ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
+            // create link
+            runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
+            // NOTE: no need to copy libs, we use import map to point that lib
+            // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
+            // runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
+        ])
     }
-    await fs.mkdir(targetDir, { recursive: true })
-
-    // create the templates
-    const packageJSON = formatPackageJSON({ name: "tmp", installMap: fileInstr?.installMap })
-    const tsConfigJSON = formatTsConfigJSON({ importMap })
-    const webpackConfigJS = formatWebpackConfigJS({ importMap })
-
-    // the __dirname is bin
-    // console.log("__dirname:", __dirname)
-    // const libDir = path.resolve(__dirname, "../lib")
-    // const cmdTS = await fs.readFile(path.resolve(__dirname, "../cmd.ts"))
-
-    const checksumFile = "package.json.checksum"
-    const prevChecksum = force ? "" : await fs.readFile(path.join(targetDir, checksumFile), { encoding: "utf-8" }).catch(e => { })
-    const packageJSONSum = createHash("md5").update(packageJSON).digest("hex")
-
-    const files = {
-        "package.json": packageJSON,
-        [checksumFile]: packageJSONSum,
-        "tsconfig.json": tsConfigJSON,
-        "webpack.config.js": webpackConfigJS,
-    }
-    if (!skipFile) {
-        // it must be a run.ts, not run.js to work out the missing tsconfig.json
-        files["run.ts"] = `import "${scriptPath}"`
-    }
-    await Promise.all([
-        ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
-        // create link
-        runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
-        // NOTE: no need to copy libs, we use import map to point that lib
-        // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
-        // runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
-    ])
 
     if (printDir) {
         console.log(targetDir)
@@ -242,17 +252,36 @@ export async function run() {
         await runCmd(`npm install --no-audit --no-fund`, { debug, cwd: targetDir })
         return
     }
-    let needInstall = force || prevChecksum === "" || options?.rebuild || (!options?.fast && prevChecksum !== packageJSONSum);
-    if (!needInstall) {
-        // check node_modules
-        let dirExists = false
-        await fs.stat(path.join(targetDir, "node_modules")).then(e => dirExists = e.isDirectory()).catch(e => { })
-        needInstall = !dirExists
+    let needInstallByOptions = false
+    if (!options?.fast) {
+        needInstallByOptions = force || prevChecksum === "" || options?.rebuild || prevChecksum !== packageJSONSum
+        // check if need install by checking node_modules
+        if (!needInstallByOptions) {
+            // check node_modules
+            let dirExists = false
+            await fs.stat(path.join(targetDir, "node_modules")).then(e => dirExists = e.isDirectory()).catch(e => { })
+            needInstallByOptions = !dirExists
+        }
     }
-    let needBuild = force || options?.rebuild || !options?.fast
 
-    const buildCmd = `npm run ${mode === 'production' ? "build" : "build-dev"}`
-    const redirect = (options?.rebuild || debug) ? "" : "&>/dev/null";
+    let installRedirect = debug ? "" : "&>/dev/null"
+
+    let needBuild = !options?.fast || force || options?.rebuild
+
+    let needCmd = !(options?.rebuild || options?.watch)
+
+    let buildSubCmd = "build"
+    let buildRedirect = ""
+    if (options?.watch) {
+        buildSubCmd = mode === "production" ? "watch" : "watch-dev"
+    } else {
+        buildSubCmd = mode === 'production' ? "build" : "build-dev"
+        if (!(options?.rebuild || options?.debug)) {
+            buildRedirect = "&>/dev/null"
+        }
+    }
+
+    const buildCmd = `npm run ${buildSubCmd}`
 
     const actualCmd = ` node "$TARGET_DIR/bin/run.js" "$@"`
 
@@ -260,10 +289,10 @@ export async function run() {
     set -e
     (
         cd "$TARGET_DIR"
-        ${needInstall ? "npm install --no-audit --no-fund " + redirect : ""}  # npm install is slow so we need a checksum to avoid repeat
-        ${needBuild ? `${buildCmd} ${redirect} ;` : ''} # dev mode webpack can use build cache
+        ${needInstallByOptions ? "npm install --no-audit --no-fund " + installRedirect : ""}  # npm install is slow so we need a checksum to avoid repeat
+        ${needBuild ? `${buildCmd} ${buildRedirect} ;` : ''} # dev mode webpack can use build cache
     )
-    ${options?.rebuild ? '' : actualCmd}
+    ${needCmd ? actualCmd : ''}
     `, {
         debug,
         args: args,
