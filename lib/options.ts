@@ -44,7 +44,7 @@ export interface ParseOptions {
 
     // stop parsing flags when seeing the first arg
     // usually used for sub-commands
-    stopAtfirstArg?: boolean
+    stopAtFirstArg?: boolean
 }
 
 // - opts  description  "h,help a b,bang c,cool: d,dark:=m e,earray::"
@@ -65,13 +65,15 @@ export function parse<T>(help: string, opts: string, argv?: string[] | ParseOpti
         //  process.argv[1] = jsfile
         argv = process.argv.slice(2)
     }
+
+    const actualArgv: string[] = argv as string[]
     // console.log("argv:", argv)
     const optList = opts.split(/\s+/)
     // map a option to target option
     const optionNameMap = {}
     const optionRepeat: { [option: string]: OptionRepeat } = {} // zero, one, many
     const aliasMap = {}
-    const stopAtfirstArg = parseOpts?.stopAtfirstArg
+    const stopAtfirstArg = parseOpts?.stopAtFirstArg
 
     for (let opt of optList) {
         let optAlias
@@ -174,11 +176,11 @@ export function parse<T>(help: string, opts: string, argv?: string[] | ParseOpti
         }
     }
     // now, parse the argv
-    for (; i < argv.length; i++) {
+    for (; i < actualArgv.length; i++) {
         // console.log("shit:", argv, i)
         const arg = argv[i]
         if (arg == '--') {
-            args.push(...argv.slice(i + 1))
+            args.push(...actualArgv.slice(i + 1))
             break
         } else if (arg == '-') { // is also a valid argument
             args.push(arg)
@@ -219,7 +221,7 @@ export function parse<T>(help: string, opts: string, argv?: string[] | ParseOpti
             // console.log("stopAtfirstArg:", stopAtfirstArg)
             if (stopAtfirstArg) {
                 // console.log("stop:", argv, i)
-                args.push(...argv.slice(i))
+                args.push(...actualArgv.slice(i))
                 break
             } else {
                 args.push(arg)

@@ -1,11 +1,12 @@
 {
     "name": "node-ext",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scripts": {
         "build": "webpack --config webpack.config.js --progress --mode=production",
         "build-dev": "webpack --config webpack.config.js --progress --mode=development",
-        "install-local": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\"",
+        "install-local-run": "npm run build && cp bin/run.js \"$(npm -g root)/node-ext/bin/run.js\"",
         "install-local-lib": "cp -R lib/* \"$(npm -g root)/node-ext/lib/\"",
+        "install-local": "npm run install-local-run; npm run install-local-lib",
         "prepack": "npm run build",
         "postinstall": "node bin/install.js"
     },

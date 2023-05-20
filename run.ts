@@ -30,14 +30,16 @@ Options:
       --keep-link     don't resolve the script if it is a link
       --install       install dependencies and exit, i.e. run \`npm install\` in target directory
       --mode=production|development    default mode: development
-      --template NAME used with nx create,by default cmd.ts is used. If NAME is list,list all available names
       --fast           skip npm install and webpack build, just run the script
       --rebuild        run npm install and webpack build
       --watch          start webpack --watch
+      
+Options for create:
+      --template NAME  used with nx create,by default cmd.ts is used. If NAME is list,list all available names
 
 Subcommands:
   update            update nx
-  create FILE.ts    create a typescript file with given template          
+  create FILE.ts    create a typescript file with given template,if no FILE, output to stdout         
 
 Once installed with \`npm install -g node-ext\`, \`nx\` will be automatically linked to /usr/local/bin so you can just use \`nx\` to run scripts
 
@@ -47,6 +49,7 @@ Example:
   $ nx -x test.ts       # run test.ts, with debug info
   $ nx --code test.ts   # open the directory
   $ nx update           # update node-ext version
+  $ nx create
 
 Compare with \`ts-node\`: you can also use \`ts-node\` to run typescript, e.g. \`npx -g ts-node --transpile-only test.ts\`.
 The advantage that \`nx\` provides is it can provide default \`webpack.config.js\` and \`tsconfg.json\`,
@@ -86,7 +89,7 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtfirstArg: true })
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtFirstArg: true })
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     // console.log("options:", options)
@@ -107,37 +110,11 @@ export async function run() {
         await runCmd("npm remove -g node-ext; npm install -g node-ext", { debug })
         return
     } else if (script === 'create') {
-        if (options.template === 'list') {
-            const templates = Object.keys(templateFiles).map(e => {
-                if (e.endsWith(".ts")) {
-                    e = e.slice(0, e.length - ".ts".length)
-                }
-                return e
-            })
-            console.log(templates.join("\n"))
-            return
-        }
-        if (!args?.[0]) {
-            throw new Error(`requires script name: nx create FILE`)
-        }
-        let exists = true
-        await fs.stat(args[0]).catch(() => {
-            exists = false
+        await handleCreate({
+            template: options?.template,
+            file: args?.[0],
+            force: options?.force,
         })
-        if (exists) {
-            throw new Error(`file already exists: ${args[0]}`)
-        }
-
-        let name = options.template
-        if (!name) {
-            name = "cmd.ts"
-        }
-        const content = templateFiles[name] || templateFiles[name + ".ts"]
-        if (!content) {
-            throw new Error(`template ${name} does not exist`)
-        }
-        await fs.writeFile(args[0], content, { encoding: "utf-8" })
-        await runCmd(`nx --code ${args[0]}`)
         return
     }
 
@@ -157,16 +134,20 @@ export async function run() {
         throw new Error(`not exists: ${script}`)
     })
     let skipFile = false
+    let scriptAbsDir = scriptPath
+    let linkDir = scriptPath
     if (scriptStat.isDirectory()) {
         // open existing
         code = true
         skipFile = true
-    } else if (!scriptStat.isFile()) {
+    } else if (scriptStat.isFile()) {
+        linkDir = path.dirname(scriptPath)
+        scriptAbsDir = path.join(linkDir, toDirName(path.basename(scriptPath)))
+    } else {
         throw new Error(`not a file: ${script}`)
     }
 
     // resolve abs dir
-    const scriptAbsDir = skipFile ? scriptPath : path.dirname(scriptPath)
     if (!path.isAbsolute(scriptAbsDir)) {
         throw new Error(`failed to detect absolute dir of ${script}, the resolved dir is ${scriptAbsDir}`)
     }
@@ -232,7 +213,7 @@ export async function run() {
         await Promise.all([
             ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
             // create link
-            runCmd(`rm -rf "${targetDir}/src" ; ln -s "${scriptAbsDir}" "${targetDir}/src"`, { debug }),
+            runCmd(`ln -sf "${linkDir}" "${targetDir}/src"`, { debug }),
             // NOTE: no need to copy libs, we use import map to point that lib
             // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
             // runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
@@ -308,6 +289,57 @@ export async function run() {
     })
 }
 
+export function toDirName(fileName: string): string {
+    return fileName.replaceAll(/[,?\/\n ()\\+&*^$#@!\\\.]/g, "_")
+}
+
+interface CreateOptions {
+    template?: string
+    file?: string
+    force?: boolean
+    varMap?: { [key: string]: string }
+}
+async function handleCreate(options?: CreateOptions) {
+    const file = options?.file
+    if (options.template === 'list') {
+        const templates = Object.keys(templateFiles).map(e => {
+            if (e.endsWith(".ts")) {
+                e = e.slice(0, e.length - ".ts".length)
+            }
+            return e
+        })
+        console.log(templates.join("\n"))
+        return
+    }
+    if (file) {
+        if (!options?.force) {
+            let exists = true
+            await fs.stat(file).catch(() => {
+                exists = false
+            })
+            if (exists) {
+                throw new Error(`file already exists: ${file}`)
+            }
+        } else {
+            await fs.mkdir(path.dirname(file), { recursive: true })
+        }
+    }
+
+    let name = options.template
+    if (!name) {
+        name = "cmd.ts"
+    }
+    const content = templateFiles[name] || templateFiles[name + ".ts"]
+    if (!content) {
+        throw new Error(`template ${name} does not exist`)
+    }
+    if (file) {
+        await fs.writeFile(file, content, { encoding: "utf-8" })
+        await runCmd(`nx --code ${file}`)
+    } else {
+        console.log(content)
+    }
+}
 interface FileInstructions {
     importMap: ImportMap
     installMap: InstallMap
