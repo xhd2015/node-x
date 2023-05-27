@@ -1,6 +1,7 @@
 import { FileHandle, open, readFile, rm as rmFile, writeFile } from "fs/promises"
 import { join } from "path"
 import { trimSuffix } from "./str"
+import { atExit } from "./at_exit"
 
 export function getLockFile(path: string): string {
     [path] = trimSuffix(path, "/")
@@ -116,8 +117,7 @@ export async function locked(path: string, timeoutMs: number, preempty: boolean,
         return false
     }
     let unlocked = false
-    process.on('exit', () => {
-        console.log("DEBUG clean lock file:", path)
+    atExit(() => {
         if (!unlocked) {
             unlocked = true
             locker.unlock()

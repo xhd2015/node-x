@@ -153,6 +153,9 @@ export function formatWebpackConfigJS(opts?: WebpackConfigOptions): string {
         extensions: [".ts", ".js"],
       },
       target: "node",
+      externals: {
+        fsevents: "require('fsevents')"
+      },
       node:{
         __filename:true,
         __dirname:true,  // these two options make the __filename & __dirname correspond to original file name
