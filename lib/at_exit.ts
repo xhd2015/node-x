@@ -1,13 +1,36 @@
 
 
-const atExists: Function[] = []
+let atExits: Function[] = []
 
 export function atExit(f: Function) {
-    atExists.push(f)
+    atExits.push(f)
 }
 
-process.on('exit', () => {
-    atExists.forEach(f => {
-        f()
+function doExits() {
+    console.log("exits:", atExits.length)
+    const exits = atExits
+    atExits = []
+    exits.forEach(f => {
+        try {
+            const p = f()
+            if (p.catch) {
+                p.catch(e => {
+                    // ignore
+                })
+            }
+        } catch (e) {
+            // ignore
+        }
     })
-})
+}
+
+// if you press ^C on bash, it will exit with 130
+function exitProcess(code?: number) {
+    doExits()
+    process.exit(code)
+}
+
+process.on('SIGINT', () => exitProcess(1))
+process.on('SIGQUIT', () => exitProcess(1))
+process.on('SIGTERM', () => exitProcess(1))
+process.on('exit', doExits)
