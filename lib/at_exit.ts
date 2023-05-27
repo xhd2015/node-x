@@ -7,7 +7,7 @@ export function atExit(f: Function) {
 }
 
 function doExits() {
-    console.log("exits:", atExits.length)
+    // console.log("exits:", atExits.length)
     const exits = atExits
     atExits = []
     exits.forEach(f => {
