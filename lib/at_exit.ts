@@ -1,5 +1,3 @@
-
-
 let atExits: Function[] = []
 
 export function atExit(f: Function) {

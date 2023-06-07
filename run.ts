@@ -246,7 +246,7 @@ export async function run() {
         await Promise.all([
             ...Object.keys(files).map(file => fs.writeFile(path.join(targetDir, file), files[file])),
             // create link
-            runCmd(`ln -sf "${linkDir}" "${targetDir}/src"`, { debug }),
+            runCmd(`if [[ ! -e "${targetDir}/src" ]] ;then ln -sf "${linkDir}" "${targetDir}/src";fi`, { debug }),
             // NOTE: no need to copy libs, we use import map to point that lib
             // copy libs, its important to note here: cp with x/* instead of just x/, otherwise this command is not idepotent.
             // runCmd(`mkdir -p "${targetDir}/lib/" && cp -R "${libDir}"/* "${targetDir}/lib/"`, { debug }),
