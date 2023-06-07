@@ -33,6 +33,7 @@ Options:
       --mode=production|development    default mode: development
       --fast           skip npm install and webpack build, just run the script
       --rebuild        run npm install and webpack build
+  -o, --output FILE    use with --rebuild, copy the target to FILE
       --watch          start webpack --watch
       --dev-watch FILE start webpack --watch, and trigger run when input FILE changes
       --dev-watch-run CMD   used with --dev-watch, by default invoking the script.If provided, will run it with the following variable set:
@@ -70,6 +71,8 @@ export interface Options {
 
     // rebuild the package
     rebuild?: boolean
+    output?: string
+
     watch?: boolean
     "dev-watch"?: string
     "dev-watch-run"?: string
@@ -97,7 +100,7 @@ export async function run() {
         const headFlags = nxFlags.split(" ").map(e => e.trim())
         argv = [...headFlags, ...argv]
     }
-    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild watch dev-watch: dev-watch-run: root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtFirstArg: true })
+    const { args: parsedArgs, options } = parseOptions<Options>(help, "h,help p,print-dir fast rebuild o,output: watch dev-watch: dev-watch-run: root x,debug c,code f,force clean rm keep-link install mode: template:", { argv, stopAtFirstArg: true })
     // const { debug, code, force, clean, rm, root,"print-dir": printDir } = parseArgs(process.argv.slice(2))
 
     const devWatchFile = options?.["dev-watch"]
@@ -110,8 +113,19 @@ export async function run() {
     let code = options?.code
     const [script, ...args] = parsedArgs
 
-    const tmpDir = tmpdir()
-    const syncDir = path.join(tmpDir, "nx-sync")
+    // const tmpDir = tmpdir()
+    let nxHomeDir = ''
+    if (process.env["NX_HOME"]) {
+        nxHomeDir = process.env["NX_HOME"]
+        await fs.mkdir(nxHomeDir, { recursive: true })
+    } else if (process.env["HOME"]) {
+        nxHomeDir = path.join(process.env["HOME"], ".nx")
+        await fs.mkdir(nxHomeDir, { recursive: true })
+    } else {
+        nxHomeDir = tmpdir()
+    }
+
+    const syncDir = path.join(nxHomeDir, "nx-sync")
     if (root) {
         console.log(syncDir)
         return
@@ -252,19 +266,19 @@ export async function run() {
         await runCmd(`npm install --no-audit --no-fund`, { debug, cwd: targetDir })
         return
     }
-    let needInstallByOptions = false
+    let needNpmInstall = false
     if (!options?.fast) {
-        needInstallByOptions = force || prevChecksum === "" || options?.rebuild || prevChecksum !== packageJSONSum
+        needNpmInstall = force || prevChecksum === "" || options?.rebuild || prevChecksum !== packageJSONSum
         // check if need install by checking node_modules
-        if (!needInstallByOptions) {
+        if (!needNpmInstall) {
             // check node_modules
             let dirExists = false
             await fs.stat(path.join(targetDir, "node_modules")).then(e => dirExists = e.isDirectory()).catch(e => { })
-            needInstallByOptions = !dirExists
+            needNpmInstall = !dirExists
         }
     }
 
-    let installRedirect = debug ? "" : "&>/dev/null"
+    let installRedirect = (debug || options?.rebuild) ? "" : "&>/dev/null"
 
     let needBuild = !options?.fast || force || options?.rebuild
 
@@ -289,15 +303,22 @@ export async function run() {
 
     const actions = []
 
+    const needCopyOutput = options?.rebuild && options?.output
+
     // why not cwd=TARGET_DIR? becuase we want cwd be where the user is
     const commonOpts = { debug, args, env: { TARGET_DIR: targetDir } }
+    if (needCopyOutput) {
+        commonOpts.env["REBUILD_OUTPUT"] = options.output
+    }
+
     const watchAndRunTarget = runCmd(`
     set -eu
     (
         cd "$TARGET_DIR"
-        ${needInstallByOptions ? "npm install --no-audit --no-fund " + installRedirect : ""}  # npm install is slow so we need a checksum to avoid repeat
+        ${needNpmInstall ? "npm install --no-audit --no-fund " + installRedirect : ""}  # npm install is slow so we need a checksum to avoid repeat
         ${needBuild ? `${buildCmd} ${buildRedirect} ;` : ''} # dev mode webpack can use build cache
     )
+    ${needCopyOutput ? 'cp "$TARGET_DIR/bin/run.js" "$REBUILD_OUTPUT"' : ''}
     ${needTargetCmd ? targetCmd : ''}
     `, {
         ...commonOpts,
